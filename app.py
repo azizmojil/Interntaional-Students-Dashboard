@@ -455,7 +455,7 @@ def main():
         
         with col1:
             # Students by College (was Program)
-            st.subheader("الطلاب حسب الكلية")
+            st.subheader("عدد الطلاب حسب الكلية")
             college_counts_overview = filtered_df['college'].value_counts().reset_index()
             college_counts_overview.columns = ['college', 'count']
             fig_college_overview = px.bar(
@@ -470,7 +470,7 @@ def main():
         
         with col2:
             # Students by Status
-            st.subheader("الطلاب حسب الحالة")
+            st.subheader("عدد الطلاب حسب الحالة الأكاديمية")
             status_counts = filtered_df['status'].value_counts().reset_index()
             status_counts.columns = ['status', 'count']
             fig_status = px.pie(
@@ -506,7 +506,7 @@ def main():
         
         with col4:
             # Enrollment Trend
-            st.subheader("اتجاه التسجيل (بالسنة الهجرية)")
+            st.subheader("عدد الطلاب المسجلين سنوياً")
             timeline_df = filtered_df.dropna(subset=['timeline_year']).copy()
             timeline_df['timeline_year'] = timeline_df['timeline_year'].astype(int)
             enrollment_by_date = timeline_df.groupby('timeline_year').size().reset_index(name='count')
@@ -565,20 +565,6 @@ def main():
             country_stats.columns = ['الدولة', 'الطلاب', 'متوسط المعدل']
             country_stats = country_stats.sort_values('الطلاب', ascending=False).head(10)
             st.dataframe(country_stats, hide_index=True, use_container_width=True)
-        
-        # College Distribution
-        st.subheader("أفضل الكليات")
-        college_counts = filtered_df['college'].value_counts().head(10).reset_index()
-        college_counts.columns = ['college', 'count']
-        fig_university = px.bar(
-            college_counts,
-            x='college',
-            y='count',
-            labels={'count': 'عدد الطلاب', 'college': 'الكلية'}
-        )
-        fig_university.update_traces(marker_color='#0d6efd', name='')
-        fig_university.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(format_plot(fig_university), use_container_width=True)
     
     with tab3:
         # Academic Performance tab
