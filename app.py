@@ -1,7 +1,7 @@
+import re
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime
 import numpy as np
 
@@ -34,16 +34,229 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# Mapping dictionaries and helpers
+NATIONALITY_TO_COUNTRY = {
+    "أردني": "الأردن",
+    "ألماني": "ألمانيا",
+    "أمريكي": "الولايات المتحدة الأمريكية",
+    "أوزبكستاني": "أوزبكستان",
+    "أوغندي": "أوغندا",
+    "أوكراني": "أوكرانيا",
+    "إماراتي": "الإمارات العربية المتحدة",
+    "اثيوبي": "إثيوبيا",
+    "اذربيجاني": "أذربيجان",
+    "ارجنتيني": "الأرجنتين",
+    "اريتيري": "إريتريا",
+    "استرالي": "أستراليا",
+    "افغانستاني": "أفغانستان",
+    "الاتحاد الأوروبي": "الاتحاد الأوروبي",
+    "الباني": "ألبانيا",
+    "الجبل الاسود": "الجبل الأسود",
+    "الجنسية تحت الإجراء": "غير محدد",
+    "القبائل النازح": "غير محدد",
+    "القبائل النازحة": "غير محدد",
+    "الكنغو": "الكونغو",
+    "المملكة المتحدة والجزر الشمالي": "المملكة المتحدة",
+    "اليابان": "اليابان",
+    "اندونيسي": "إندونيسيا",
+    "ايراني": "إيران",
+    "ايطالي": "إيطاليا",
+    "باكستاني": "باكستان",
+    "بحريني": "البحرين",
+    "بدون": "غير محدد",
+    "برتغالي": "البرتغال",
+    "بريطاني": "المملكة المتحدة",
+    "بلجيكي": "بلجيكا",
+    "بلغاري": "بلغاريا",
+    "بنغلاديشي": "بنغلاديش",
+    "بنيني": "بنين",
+    "بوركيني": "بوركينا فاسو",
+    "بوروندي": "بوروندي",
+    "بوسني": "البوسنة والهرسك",
+    "بولندي": "بولندا",
+    "بيلاروسي": "بيلاروسيا",
+    "تايلندي": "تايلاند",
+    "تركستاني": "تركستان",
+    "تركمنستاني": "تركمانستان",
+    "تركي": "تركيا",
+    "ترينيداد وتوباغو": "ترينيداد وتوباغو",
+    "تشادي": "تشاد",
+    "تنزاني": "تنزانيا",
+    "توغوي": "توغو",
+    "تونسي": "تونس",
+    "ج أفريقيا الوسطى": "جمهورية أفريقيا الوسطى",
+    "جامايكي": "جامايكا",
+    "جزائري": "الجزائر",
+    "جزر القمر": "جزر القمر",
+    "جزر فيرجين البريطانية": "جزر فيرجن البريطانية",
+    "جنوب افريقي": "جنوب أفريقيا",
+    "جورجي": "جورجيا",
+    "جيبوتي": "جيبوتي",
+    "دانمركي": "الدنمارك",
+    "دومينيكي": "جمهورية الدومينيكان",
+    "رواندي": "رواندا",
+    "روسي": "روسيا",
+    "زمبابوي": "زيمبابوي",
+    "سانت كيتس ونيفس": "سانت كيتس ونيفيس",
+    "سري لانكي": "سريلانكا",
+    "سعودي من جهة الأم": "السعودية",
+    "سنغافوري": "سنغافورة",
+    "سنغالي": "السنغال",
+    "سوداني": "السودان",
+    "سوري": "سوريا",
+    "سويدي": "السويد",
+    "سويسري": "سويسرا",
+    "سيراليوني": "سيراليون",
+    "صربيا": "صربيا",
+    "صومالي": "الصومال",
+    "صيني": "الصين",
+    "طاجكستان": "طاجيكستان",
+    "عاجي": "ساحل العاج",
+    "عراقي": "العراق",
+    "عماني": "عُمان",
+    "غابوني": "الغابون",
+    "غامبي": "غامبيا",
+    "غاني": "غانا",
+    "غير سعودي": "غير محدد",
+    "غيني": "غينيا",
+    "غينيا - بيساو": "غينيا بيساو",
+    "غينيا الاستوائية": "غينيا الاستوائية",
+    "فرنسي": "فرنسا",
+    "فلبيني": "الفلبين",
+    "فلسطيني": "فلسطين",
+    "فلسطينية بوثيقة مصري": "فلسطين",
+    "فنلندي": "فنلندا",
+    "قبائل نازحة / الحليفه": "غير محدد",
+    "قبائل نازحة / الكويت": "غير محدد",
+    "قطري": "قطر",
+    "قيرغيزستان": "قيرغيزستان",
+    "كازاخستاني": "كازاخستان",
+    "كاميروني": "الكاميرون",
+    "كمبودي": "كمبوديا",
+    "كندي": "كندا",
+    "كوري": "كوريا",
+    "كوسوفا": "كوسوفو",
+    "كونغوليا": "جمهورية الكونغو الديمقراطية",
+    "كويتي": "الكويت",
+    "كيني": "كينيا",
+    "لبناني": "لبنان",
+    "ليبي": "ليبيا",
+    "ليبيري": "ليبيريا",
+    "مالديفي": "المالديف",
+    "مالطي": "مالطا",
+    "مالي": "مالي",
+    "ماليزي": "ماليزيا",
+    "مجري": "المجر",
+    "مدغشقري": "مدغشقر",
+    "مصري": "مصر",
+    "مغربي": "المغرب",
+    "مقدوني": "مقدونيا الشمالية",
+    "مقيم": "غير محدد",
+    "مقيم / نازح": "غير محدد",
+    "مقيم بلوشي": "غير محدد",
+    "منغولي": "منغوليا",
+    "موريتاني": "موريتانيا",
+    "موزامبيقي": "موزمبيق",
+    "ميانمار/جواز باكستاني": "ميانمار",
+    "ميانماري": "ميانمار",
+    "نازح": "غير محدد",
+    "نرويجي": "النرويج",
+    "نمساوي": "النمسا",
+    "نيبالي": "نيبال",
+    "نيجري": "النيجر",
+    "نيجيري": "نيجيريا",
+    "نيوزيلندي": "نيوزيلندا",
+    "هندي": "الهند",
+    "هولندي": "هولندا",
+    "يمني": "اليمن",
+    "يوغوسلافيا": "يوغوسلافيا"
+}
+
+STATUS_ACTIVE_KEYWORDS = [
+    "متابع",
+    "مؤهل",
+    "مكتمل",
+    "زائر",
+    "مؤجل"
+]
+
+STATUS_GRAD_KEYWORDS = [
+    "متخرج",
+    "خريج"
+]
+
+
+def map_country(value: str) -> str:
+    if pd.isna(value):
+        return "غير محدد"
+    key = str(value).strip()
+    return NATIONALITY_TO_COUNTRY.get(key, key if key else "غير محدد")
+
+
+def categorize_status(value: str) -> str:
+    if pd.isna(value):
+        return "غير محدد"
+    text = str(value)
+    if any(keyword in text for keyword in STATUS_GRAD_KEYWORDS):
+        return "متخرج"
+    if any(keyword in text for keyword in STATUS_ACTIVE_KEYWORDS):
+        return "نشط"
+    if "NOT ACTIVE" in text.upper():
+        return "غير نشط"
+    if any(keyword in text for keyword in ["منسحب", "مفصول", "موقوف", "مطوي", "متوفى", "محول", "منقطع", "معتذر", "إنسحاب"]):
+        return "غير نشط"
+    return "غير نشط"
+
+
+def parse_hijri_year(term_value) -> float | None:
+    if pd.isna(term_value):
+        return None
+    numbers = re.findall(r'\d{3,4}', str(term_value))
+    if not numbers:
+        return None
+    try:
+        hijri_year = int(numbers[0])
+        return hijri_year + 579  # تقريب تحويل هجري إلى ميلادي
+    except ValueError:
+        return None
+
+
+def map_gender(value: str) -> str:
+    mapping = {"M": "ذكر", "F": "أنثى", "N": "غير محدد"}
+    if pd.isna(value):
+        return "غير محدد"
+    return mapping.get(str(value).strip(), "غير محدد")
+
 # Load data
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv('data/students_data.csv')
-        df['enrollment_date'] = pd.to_datetime(df['enrollment_date'])
-        df['graduation_date'] = pd.to_datetime(df['graduation_date'])
-        return df
+        df = pd.read_excel('data/data.xlsx')
+        processed = pd.DataFrame({
+            "student_id": df.get("STD_ID"),
+            "name": df.get("STD_NAME"),
+            "gender": df.get("GENDER").apply(map_gender),
+            "country": df.get("CITZ_DESC").apply(map_country),
+            "program": df.get("MAJR_DESC").fillna("غير محدد"),
+            "college": df.get("COLL_DESC").fillna("غير محدد"),
+            "status_detail": df.get("LAST_STST").fillna("غير محدد"),
+            "funding": df.get("CELG_CODE").fillna("غير محدد"),
+            "gpa": pd.to_numeric(df.get("STD_GPA"), errors="coerce"),
+            "hours": pd.to_numeric(df.get("STD_HRS"), errors="coerce"),
+            "term_admit": df.get("TERM_ADMIT"),
+            "last_term": df.get("LAST_TERM"),
+            "level": df.get("LEVL_DESC").fillna("غير محدد"),
+            "email": df.get("EMAIL"),
+            "mobile": df.get("MOBILE"),
+        })
+
+        processed["status"] = processed["status_detail"].apply(categorize_status)
+        processed["admit_year"] = processed["term_admit"].apply(parse_hijri_year)
+        processed["last_term_year"] = processed["last_term"].apply(parse_hijri_year)
+        processed["timeline_year"] = processed["admit_year"].fillna(processed["last_term_year"])
+        return processed
     except FileNotFoundError:
-        st.error("❌ ملف البيانات غير موجود! يرجى التأكد من وجود 'data/students_data.csv'.")
+        st.error("❌ ملف البيانات غير موجود! يرجى التأكد من وجود 'data/data.xlsx'.")
         st.stop()
     except Exception as e:
         st.error(f"❌ خطأ في تحميل البيانات: {str(e)}")
@@ -57,33 +270,38 @@ def main():
     
     # Load data
     df = load_data()
+    gpa_values = df['gpa'].dropna()
+    gpa_min = float(gpa_values.min()) if not gpa_values.empty else 0.0
+    gpa_max = float(gpa_values.max()) if not gpa_values.empty else 5.0
+    if gpa_min == gpa_max:
+        gpa_max = gpa_min + 1
     
     # Sidebar filters
     st.sidebar.header("📊 الفلاتر")
     
     # Country filter
-    countries = ['الكل'] + sorted(df['country'].unique().tolist())
+    countries = ['الكل'] + sorted(df['country'].dropna().unique().tolist())
     selected_country = st.sidebar.selectbox("اختر الدولة", countries)
     
     # Program filter
-    programs = ['الكل'] + sorted(df['program'].unique().tolist())
+    programs = ['الكل'] + sorted(df['program'].dropna().unique().tolist())
     selected_program = st.sidebar.selectbox("اختر البرنامج", programs)
     
     # Status filter
-    status_options = ['الكل'] + sorted(df['status'].unique().tolist())
+    status_options = ['الكل'] + sorted(df['status'].dropna().unique().tolist())
     selected_status = st.sidebar.selectbox("اختر الحالة", status_options)
     
     # Gender filter
-    gender_options = ['الكل'] + sorted(df['gender'].unique().tolist())
+    gender_options = ['الكل'] + sorted(df['gender'].dropna().unique().tolist())
     selected_gender = st.sidebar.selectbox("اختر الجنس", gender_options)
     
     # GPA range filter
     st.sidebar.markdown("**نطاق المعدل التراكمي**")
     gpa_range = st.sidebar.slider(
         "اختر نطاق المعدل التراكمي",
-        min_value=float(df['gpa'].min()),
-        max_value=float(df['gpa'].max()),
-        value=(float(df['gpa'].min()), float(df['gpa'].max())),
+        min_value=gpa_min,
+        max_value=gpa_max,
+        value=(gpa_min, gpa_max),
         step=0.1
     )
     
@@ -97,7 +315,8 @@ def main():
         filtered_df = filtered_df[filtered_df['status'] == selected_status]
     if selected_gender != 'الكل':
         filtered_df = filtered_df[filtered_df['gender'] == selected_gender]
-    filtered_df = filtered_df[(filtered_df['gpa'] >= gpa_range[0]) & (filtered_df['gpa'] <= gpa_range[1])]
+    gpa_for_filter = filtered_df['gpa'].fillna(gpa_min)
+    filtered_df = filtered_df[(gpa_for_filter >= gpa_range[0]) & (gpa_for_filter <= gpa_range[1])]
     
     # Display metrics
     st.markdown("---")
@@ -106,9 +325,9 @@ def main():
     with col1:
         st.metric("إجمالي الطلاب", len(filtered_df))
     with col2:
-        st.metric("الطلاب النشطون", len(filtered_df[filtered_df['status'] == 'Active']))
+        st.metric("الطلاب النشطون", len(filtered_df[filtered_df['status'] == 'نشط']))
     with col3:
-        st.metric("الخريجون", len(filtered_df[filtered_df['status'] == 'Graduated']))
+        st.metric("الخريجون", len(filtered_df[filtered_df['status'] == 'متخرج']))
     with col4:
         st.metric("متوسط المعدل", f"{filtered_df['gpa'].mean():.2f}")
     with col5:
@@ -173,15 +392,16 @@ def main():
         with col4:
             # Enrollment Trend
             st.subheader("اتجاه التسجيل")
-            enrollment_by_date = filtered_df.groupby(filtered_df['enrollment_date'].dt.year).size().reset_index()
-            enrollment_by_date.columns = ['year', 'count']
+            timeline_df = filtered_df.dropna(subset=['timeline_year']).copy()
+            timeline_df['timeline_year'] = timeline_df['timeline_year'].astype(int)
+            enrollment_by_date = timeline_df.groupby('timeline_year').size().reset_index(name='count')
             fig_trend = px.line(
                 enrollment_by_date,
-                x='year',
+                x='timeline_year',
                 y='count',
                 markers=True,
-                title="اتجاه التسجيل حسب السنة",
-                labels={'count': 'عدد الطلاب', 'year': 'السنة'}
+                title="اتجاه التسجيل حسب السنة (تقريب ميلادي)",
+                labels={'count': 'عدد الطلاب', 'timeline_year': 'السنة'}
             )
             fig_trend.update_traces(line_color='#636EFA', line_width=3)
             st.plotly_chart(fig_trend, use_container_width=True)
@@ -218,18 +438,18 @@ def main():
             country_stats = country_stats.sort_values('الطلاب', ascending=False).head(10)
             st.dataframe(country_stats, hide_index=True, use_container_width=True)
         
-        # University Distribution
-        st.subheader("أفضل الجامعات")
-        university_counts = filtered_df['university'].value_counts().head(10).reset_index()
-        university_counts.columns = ['university', 'count']
+        # College Distribution
+        st.subheader("أفضل الكليات")
+        college_counts = filtered_df['college'].value_counts().head(10).reset_index()
+        college_counts.columns = ['college', 'count']
         fig_university = px.bar(
-            university_counts,
-            x='university',
+            college_counts,
+            x='college',
             y='count',
             color='count',
             color_continuous_scale='Sunset',
-            labels={'count': 'عدد الطلاب', 'university': 'الجامعة'},
-            title="أفضل 10 جامعات"
+            labels={'count': 'عدد الطلاب', 'college': 'الكلية'},
+            title="أفضل 10 كليات"
         )
         fig_university.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig_university, use_container_width=True)
@@ -268,17 +488,21 @@ def main():
             st.plotly_chart(fig_gpa_program, use_container_width=True)
         
         # Age Distribution
-        st.subheader("توزيع الأعمار")
-        fig_age = px.box(
-            filtered_df,
-            x='program',
-            y='age',
-            color='program',
-            labels={'age': 'العمر', 'program': 'البرنامج'},
-            title="توزيع الأعمار حسب البرنامج"
-        )
-        fig_age.update_layout(xaxis_tickangle=-45, showlegend=False)
-        st.plotly_chart(fig_age, use_container_width=True)
+        st.subheader("توزيع الساعات المكتسبة")
+        hours_df = filtered_df.dropna(subset=['hours'])
+        if hours_df.empty:
+            st.info("لا توجد بيانات ساعات لعرضها")
+        else:
+            fig_hours = px.box(
+                hours_df,
+                x='program',
+                y='hours',
+                color='program',
+                labels={'hours': 'الساعات المكتسبة', 'program': 'البرنامج'},
+                title="توزيع الساعات المكتسبة حسب البرنامج"
+            )
+            fig_hours.update_layout(xaxis_tickangle=-45, showlegend=False)
+            st.plotly_chart(fig_hours, use_container_width=True)
         
         # GPA by Country (Top 10)
         st.subheader("متوسط المعدل حسب الدولة (أفضل 10)")
@@ -299,17 +523,38 @@ def main():
         st.subheader("بيانات الطلاب")
         
         # Search functionality
-        search_term = st.text_input("🔍 البحث بالاسم أو الدولة أو الجامعة", "")
+        search_term = st.text_input("🔍 البحث بالاسم أو الدولة أو الكلية أو التخصص", "")
         
         if search_term:
             mask = (
                 filtered_df['name'].str.contains(search_term, case=False, na=False) |
                 filtered_df['country'].str.contains(search_term, case=False, na=False) |
-                filtered_df['university'].str.contains(search_term, case=False, na=False)
+                filtered_df['college'].str.contains(search_term, case=False, na=False) |
+                filtered_df['program'].str.contains(search_term, case=False, na=False)
             )
             display_df = filtered_df[mask]
         else:
             display_df = filtered_df
+
+        columns_to_show = {
+            "student_id": "الرقم الجامعي",
+            "name": "الاسم",
+            "country": "الدولة",
+            "program": "التخصص",
+            "college": "الكلية",
+            "status": "الحالة المختصرة",
+            "status_detail": "تفاصيل الحالة",
+            "gpa": "المعدل التراكمي",
+            "hours": "الساعات المكتسبة",
+            "funding": "نوع المنحة",
+            "term_admit": "فصل القبول (هجري)",
+            "last_term": "آخر فصل (هجري)",
+            "admit_year": "سنة القبول (ميلادي تقديري)",
+            "last_term_year": "آخر فصل (ميلادي تقديري)",
+            "email": "البريد الإلكتروني",
+            "mobile": "الجوال"
+        }
+        display_df = display_df[list(columns_to_show.keys())].rename(columns=columns_to_show)
         
         # Display dataframe
         st.dataframe(
@@ -329,7 +574,8 @@ def main():
         
         # Summary statistics
         st.subheader("الإحصائيات الموجزة")
-        st.dataframe(display_df.describe(), use_container_width=True)
+        numeric_summary = display_df.select_dtypes(include=['number']).describe()
+        st.dataframe(numeric_summary, use_container_width=True)
     
     # Footer
     st.markdown("---")
