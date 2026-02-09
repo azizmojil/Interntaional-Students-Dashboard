@@ -1,9 +1,17 @@
-import re
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import numpy as np
+from utils import (
+    map_country,
+    map_continent,
+    categorize_status,
+    parse_hijri_year,
+    map_gender,
+    format_plot,
+    ARABIC_TO_ENGLISH
+)
 
 # Page configuration
 st.set_page_config(
@@ -25,7 +33,8 @@ st.markdown("""
         --border: #e5e7eb;
     }
 
-    * {
+    /* Apply RTL to the main app container */
+    .stApp {
         direction: rtl;
         text-align: right;
         font-family: 'Inter', sans-serif;
@@ -34,6 +43,52 @@ st.markdown("""
     body {
         background: #f5f7fb;
         color: #111827;
+    }
+    
+    /* Improve input visibility - targeting Streamlit widgets specifically */
+    .stSelectbox div[data-baseweb="select"] > div,
+    .stSelectbox div[data-baseweb="select"] span,
+    .stTextInput input,
+    .stNumberInput input {
+        color: #111827 !important;
+        -webkit-text-fill-color: #111827 !important;
+        caret-color: #111827 !important;
+    }
+    
+    /* Placeholder styling */
+    .stTextInput input::placeholder,
+    .stNumberInput input::placeholder {
+        color: #6b7280 !important;
+        opacity: 1 !important;
+    }
+    
+    /* Dropdown menu items */
+    ul[data-baseweb="menu"] li {
+        color: #111827 !important;
+        direction: rtl;
+        text-align: right;
+    }
+    
+    /* Fix Plotly Overlaps: Force LTR for the chart container to prevent coordinate flipping bugs */
+    .js-plotly-plot, .plot-container {
+        direction: ltr !important;
+    }
+    
+    /* Ensure tooltips are readable */
+    .js-plotly-plot .plotly .hovertext text {
+        text-anchor: start !important;
+    }
+    
+    /* Fix Streamlit slider interaction issues in RTL */
+    .stSlider {
+        direction: ltr !important;
+    }
+    
+    /* Re-align slider label to right */
+    .stSlider label {
+        direction: rtl !important;
+        text-align: right !important;
+        width: 100%;
     }
 
     .block-container {
@@ -52,47 +107,15 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stSidebarNavLink"] {
         border-radius: 10px;
     }
-
-    /* Top hero */
-    .adminkit-header {
-        background: linear-gradient(135deg, #1d4ed8, #0b1220);
-        color: #ffffff;
-        border-radius: 16px;
-        padding: 22px 24px;
-        margin-bottom: 1.2rem;
-        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.25);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
+    
+    /* Sidebar inputs */
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white !important;
     }
-    .adminkit-header .eyebrow {
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        opacity: 0.8;
-        font-size: 12px;
-        margin-bottom: 4px;
-    }
-    .adminkit-header h2 {
-        margin: 0;
-        font-size: 26px;
-        font-weight: 700;
-    }
-    .adminkit-header .muted {
-        margin: 4px 0 0;
-        color: rgba(255,255,255,0.82);
-    }
-    .adminkit-header .pills {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .adminkit-header .pill {
-        background: rgba(255,255,255,0.16);
-        padding: 8px 12px;
-        border-radius: 999px;
-        font-weight: 600;
-        border: 1px solid rgba(255,255,255,0.25);
+    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div {
+        color: white !important;
+        -webkit-text-fill-color: white !important;
     }
 
     /* Stat cards */
@@ -176,199 +199,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Mapping dictionaries and helpers
-NATIONALITY_TO_COUNTRY = {
-    "أردني": "الأردن",
-    "ألماني": "ألمانيا",
-    "أمريكي": "الولايات المتحدة الأمريكية",
-    "أوزبكستاني": "أوزبكستان",
-    "أوغندي": "أوغندا",
-    "أوكراني": "أوكرانيا",
-    "إماراتي": "الإمارات العربية المتحدة",
-    "اثيوبي": "إثيوبيا",
-    "اذربيجاني": "أذربيجان",
-    "ارجنتيني": "الأرجنتين",
-    "اريتيري": "إريتريا",
-    "استرالي": "أستراليا",
-    "افغانستاني": "أفغانستان",
-    "الاتحاد الأوروبي": "الاتحاد الأوروبي",
-    "الباني": "ألبانيا",
-    "الجبل الاسود": "الجبل الأسود",
-    "الجنسية تحت الإجراء": "غير محدد",
-    "القبائل النازح": "غير محدد",
-    "القبائل النازحة": "غير محدد",
-    "الكنغو": "الكونغو",
-    "المملكة المتحدة والجزر الشمالي": "المملكة المتحدة",
-    "اليابان": "اليابان",
-    "اندونيسي": "إندونيسيا",
-    "ايراني": "إيران",
-    "ايطالي": "إيطاليا",
-    "باكستاني": "باكستان",
-    "بحريني": "البحرين",
-    "بدون": "غير محدد",
-    "برتغالي": "البرتغال",
-    "بريطاني": "المملكة المتحدة",
-    "بلجيكي": "بلجيكا",
-    "بلغاري": "بلغاريا",
-    "بنغلاديشي": "بنغلاديش",
-    "بنيني": "بنين",
-    "بوركيني": "بوركينا فاسو",
-    "بوروندي": "بوروندي",
-    "بوسني": "البوسنة والهرسك",
-    "بولندي": "بولندا",
-    "بيلاروسي": "بيلاروسيا",
-    "تايلندي": "تايلاند",
-    "تركستاني": "تركستان",
-    "تركمنستاني": "تركمانستان",
-    "تركي": "تركيا",
-    "ترينيداد وتوباغو": "ترينيداد وتوباغو",
-    "تشادي": "تشاد",
-    "تنزاني": "تنزانيا",
-    "توغوي": "توغو",
-    "تونسي": "تونس",
-    "ج أفريقيا الوسطى": "جمهورية أفريقيا الوسطى",
-    "جامايكي": "جامايكا",
-    "جزائري": "الجزائر",
-    "جزر القمر": "جزر القمر",
-    "جزر فيرجين البريطانية": "جزر فيرجن البريطانية",
-    "جنوب افريقي": "جنوب أفريقيا",
-    "جورجي": "جورجيا",
-    "جيبوتي": "جيبوتي",
-    "دانمركي": "الدنمارك",
-    "دومينيكي": "جمهورية الدومينيكان",
-    "رواندي": "رواندا",
-    "روسي": "روسيا",
-    "زمبابوي": "زيمبابوي",
-    "سانت كيتس ونيفس": "سانت كيتس ونيفيس",
-    "سري لانكي": "سريلانكا",
-    "سعودي من جهة الأم": "السعودية",
-    "سنغافوري": "سنغافورة",
-    "سنغالي": "السنغال",
-    "سوداني": "السودان",
-    "سوري": "سوريا",
-    "سويدي": "السويد",
-    "سويسري": "سويسرا",
-    "سيراليوني": "سيراليون",
-    "صربيا": "صربيا",
-    "صومالي": "الصومال",
-    "صيني": "الصين",
-    "طاجكستان": "طاجيكستان",
-    "عاجي": "ساحل العاج",
-    "عراقي": "العراق",
-    "عماني": "عُمان",
-    "غابوني": "الغابون",
-    "غامبي": "غامبيا",
-    "غاني": "غانا",
-    "غير سعودي": "غير محدد",
-    "غيني": "غينيا",
-    "غينيا - بيساو": "غينيا بيساو",
-    "غينيا الاستوائية": "غينيا الاستوائية",
-    "فرنسي": "فرنسا",
-    "فلبيني": "الفلبين",
-    "فلسطيني": "فلسطين",
-    "فلسطينية بوثيقة مصري": "فلسطين",
-    "فنلندي": "فنلندا",
-    "قبائل نازحة / الحليفه": "غير محدد",
-    "قبائل نازحة / الكويت": "غير محدد",
-    "قطري": "قطر",
-    "قيرغيزستان": "قيرغيزستان",
-    "كازاخستاني": "كازاخستان",
-    "كاميروني": "الكاميرون",
-    "كمبودي": "كمبوديا",
-    "كندي": "كندا",
-    "كوري": "كوريا",
-    "كوسوفا": "كوسوفو",
-    "كونغوليا": "جمهورية الكونغو الديمقراطية",
-    "كويتي": "الكويت",
-    "كيني": "كينيا",
-    "لبناني": "لبنان",
-    "ليبي": "ليبيا",
-    "ليبيري": "ليبيريا",
-    "مالديفي": "المالديف",
-    "مالطي": "مالطا",
-    "مالي": "مالي",
-    "ماليزي": "ماليزيا",
-    "مجري": "المجر",
-    "مدغشقري": "مدغشقر",
-    "مصري": "مصر",
-    "مغربي": "المغرب",
-    "مقدوني": "مقدونيا الشمالية",
-    "مقيم": "غير محدد",
-    "مقيم / نازح": "غير محدد",
-    "مقيم بلوشي": "غير محدد",
-    "منغولي": "منغوليا",
-    "موريتاني": "موريتانيا",
-    "موزامبيقي": "موزمبيق",
-    "ميانمار/جواز باكستاني": "ميانمار",
-    "ميانماري": "ميانمار",
-    "نازح": "غير محدد",
-    "نرويجي": "النرويج",
-    "نمساوي": "النمسا",
-    "نيبالي": "نيبال",
-    "نيجري": "النيجر",
-    "نيجيري": "نيجيريا",
-    "نيوزيلندي": "نيوزيلندا",
-    "هندي": "الهند",
-    "هولندي": "هولندا",
-    "يمني": "اليمن",
-    "يوغوسلافيا": "يوغوسلافيا"
-}
-
-STATUS_ACTIVE_KEYWORDS = [
-    "متابع",
-    "مؤهل",
-    "مكتمل",
-    "زائر",
-    "مؤجل"
-]
-
-STATUS_GRAD_KEYWORDS = [
-    "متخرج",
-    "خريج"
-]
-
-
-def map_country(value: str) -> str:
-    if pd.isna(value):
-        return "غير محدد"
-    key = str(value).strip()
-    return NATIONALITY_TO_COUNTRY.get(key, key if key else "غير محدد")
-
-
-def categorize_status(value: str) -> str:
-    if pd.isna(value):
-        return "غير محدد"
-    text = str(value)
-    if any(keyword in text for keyword in STATUS_GRAD_KEYWORDS):
-        return "متخرج"
-    if any(keyword in text for keyword in STATUS_ACTIVE_KEYWORDS):
-        return "نشط"
-    if "NOT ACTIVE" in text.upper():
-        return "غير نشط"
-    if any(keyword in text for keyword in ["منسحب", "مفصول", "موقوف", "مطوي", "متوفى", "محول", "منقطع", "معتذر", "إنسحاب"]):
-        return "غير نشط"
-    return "غير نشط"
-
-
-def parse_hijri_year(term_value) -> float | None:
-    if pd.isna(term_value):
-        return None
-    numbers = re.findall(r'\d{3,4}', str(term_value))
-    if not numbers:
-        return None
-    try:
-        hijri_year = int(numbers[0])
-        return hijri_year + 579  # تقريب تحويل هجري إلى ميلادي
-    except ValueError:
-        return None
-
-
-def map_gender(value: str) -> str:
-    mapping = {"M": "ذكر", "F": "أنثى", "N": "غير محدد"}
-    if pd.isna(value):
-        return "غير محدد"
-    return mapping.get(str(value).strip(), "غير محدد")
-
 # Load data
 @st.cache_data
 def load_data():
@@ -396,6 +226,7 @@ def load_data():
         processed["admit_year"] = processed["term_admit"].apply(parse_hijri_year)
         processed["last_term_year"] = processed["last_term"].apply(parse_hijri_year)
         processed["timeline_year"] = processed["admit_year"].fillna(processed["last_term_year"])
+        processed["continent"] = processed["country"].apply(map_continent)
         return processed
     except FileNotFoundError:
         st.error("❌ ملف البيانات غير موجود! يرجى التأكد من وجود 'data/data.xlsx'.")
@@ -403,6 +234,40 @@ def load_data():
     except Exception as e:
         st.error(f"❌ خطأ في تحميل البيانات: {str(e)}")
         st.stop()
+
+def gaussian_kde(data, bandwidth=None):
+    """
+    Compute Gaussian KDE manually to avoid scipy dependency.
+    """
+    data = np.asarray(data)
+    n = len(data)
+    if n == 0:
+        return np.array([]), np.array([])
+    
+    std = np.std(data)
+    if std == 0:
+        # If all values are the same, return a spike
+        return np.array([data[0]]), np.array([1.0])
+        
+    if bandwidth is None:
+        # Scott's Rule
+        bandwidth = 1.06 * std * (n ** (-1/5))
+        
+    if bandwidth == 0:
+        bandwidth = 0.1
+
+    min_x = data.min() - 3 * bandwidth
+    max_x = data.max() + 3 * bandwidth
+    x = np.linspace(min_x, max_x, 200)
+    
+    # Vectorized calculation
+    # x[:, None] is (200, 1), data[None, :] is (1, n)
+    # diff is (200, n)
+    diff = (x[:, None] - data[None, :]) / bandwidth
+    # pdf is (200,)
+    pdf = (np.exp(-0.5 * diff**2) / np.sqrt(2 * np.pi)).sum(axis=1) / (n * bandwidth)
+    
+    return x, pdf
 
 # Main app
 def main():
@@ -413,20 +278,7 @@ def main():
     # Load data
     df = load_data()
     
-    # Hero header inspired by AdminKit
-    st.markdown(f"""
-        <div class="adminkit-header">
-            <div>
-                <div class="eyebrow">لوحة التحكم</div>
-                <h2>تحليلات الطلاب الدوليين</h2>
-                <p class="muted">صورة عامة سريعة مع فلاتر جانبية لتخصيص العرض</p>
-            </div>
-            <div class="pills">
-                <span class="pill">تاريخ التحديث: {datetime.now().strftime('%Y/%m/%d')}</span>
-                <span class="pill">عدد السجلات: {len(df)}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Removed Hero Header as requested
     
     gpa_values = df['gpa'].dropna()
     gpa_min = float(gpa_values.min()) if not gpa_values.empty else 0.0
@@ -440,6 +292,10 @@ def main():
     # Country filter
     countries = ['الكل'] + sorted(df['country'].dropna().unique().tolist())
     selected_country = st.sidebar.selectbox("اختر الدولة", countries)
+    
+    # College filter
+    colleges = ['الكل'] + sorted(df['college'].dropna().unique().tolist())
+    selected_college = st.sidebar.selectbox("اختر الكلية", colleges)
     
     # Program filter
     programs = ['الكل'] + sorted(df['program'].dropna().unique().tolist())
@@ -455,6 +311,7 @@ def main():
     
     # GPA range filter
     st.sidebar.markdown("**نطاق المعدل التراكمي**")
+    st.sidebar.markdown("**نطاق المعدل التراكمي**")
     gpa_range = st.sidebar.slider(
         "اختر نطاق المعدل التراكمي",
         min_value=gpa_min,
@@ -467,6 +324,8 @@ def main():
     filtered_df = df.copy()
     if selected_country != 'الكل':
         filtered_df = filtered_df[filtered_df['country'] == selected_country]
+    if selected_college != 'الكل':
+        filtered_df = filtered_df[filtered_df['college'] == selected_college]
     if selected_program != 'الكل':
         filtered_df = filtered_df[filtered_df['program'] == selected_program]
     if selected_status != 'الكل':
@@ -533,21 +392,19 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            # Students by Program
-            st.subheader("الطلاب حسب البرنامج")
-            program_counts = filtered_df['program'].value_counts().reset_index()
-            program_counts.columns = ['program', 'count']
-            fig_program = px.bar(
-                program_counts,
-                x='program',
+            # Students by College (was Program)
+            st.subheader("الطلاب حسب الكلية")
+            college_counts_overview = filtered_df['college'].value_counts().reset_index()
+            college_counts_overview.columns = ['college', 'count']
+            fig_college_overview = px.bar(
+                college_counts_overview,
+                x='college',
                 y='count',
-                color='count',
-                color_continuous_scale='Blues',
-                labels={'count': 'عدد الطلاب', 'program': 'البرنامج'},
-                title="التوزيع حسب البرنامج"
+                labels={'count': 'عدد الطلاب', 'college': 'الكلية'}
             )
-            fig_program.update_layout(showlegend=False)
-            st.plotly_chart(fig_program, use_container_width=True)
+            fig_college_overview.update_traces(marker_color='#0d6efd')
+            fig_college_overview.update_layout(showlegend=False)
+            st.plotly_chart(format_plot(fig_college_overview), use_container_width=True)
         
         with col2:
             # Students by Status
@@ -558,26 +415,32 @@ def main():
                 status_counts,
                 values='count',
                 names='status',
-                title="التوزيع حسب الحالة",
-                color_discrete_sequence=px.colors.qualitative.Set2
+                color_discrete_sequence=px.colors.qualitative.Set2,
+                hole=0.5
             )
-            st.plotly_chart(fig_status, use_container_width=True)
+            # Update traces to show labels and hide hover info
+            fig_status.update_traces(textinfo='label+percent+value', hoverinfo='skip')
+            st.plotly_chart(format_plot(fig_status), use_container_width=True)
         
         col3, col4 = st.columns(2)
         
         with col3:
             # Gender Distribution
             st.subheader("التوزيع حسب الجنس")
-            gender_counts = filtered_df['gender'].value_counts().reset_index()
+            # Filter out "غير محدد" from gender visualization
+            gender_df = filtered_df[filtered_df['gender'] != "غير محدد"]
+            gender_counts = gender_df['gender'].value_counts().reset_index()
             gender_counts.columns = ['gender', 'count']
             fig_gender = px.pie(
                 gender_counts,
                 values='count',
                 names='gender',
-                title="التوزيع حسب الجنس",
-                color_discrete_sequence=px.colors.qualitative.Pastel
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+                hole=0.5
             )
-            st.plotly_chart(fig_gender, use_container_width=True)
+            # Update traces to show labels and hide hover info
+            fig_gender.update_traces(textinfo='label+percent+value', hoverinfo='skip')
+            st.plotly_chart(format_plot(fig_gender), use_container_width=True)
         
         with col4:
             # Enrollment Trend
@@ -590,32 +453,43 @@ def main():
                 x='timeline_year',
                 y='count',
                 markers=True,
-                title="اتجاه التسجيل حسب السنة (تقريب ميلادي)",
                 labels={'count': 'عدد الطلاب', 'timeline_year': 'السنة'}
             )
             fig_trend.update_traces(line_color='#636EFA', line_width=3)
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(format_plot(fig_trend), use_container_width=True)
     
     with tab2:
         # Geographic Analysis tab
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Students by Country (Top 15)
-            st.subheader("أفضل الدول")
-            country_counts = filtered_df['country'].value_counts().head(15).reset_index()
-            country_counts.columns = ['country', 'count']
-            fig_country = px.bar(
-                country_counts,
-                x='count',
-                y='country',
-                orientation='h',
+            # World Map
+            st.subheader("التوزيع بحسب الجنسية")
+            
+            # Prepare data for map
+            map_data = filtered_df['country'].value_counts().reset_index()
+            map_data.columns = ['country_ar', 'count']
+            
+            # Map Arabic names to English for Plotly
+            map_data['country_en'] = map_data['country_ar'].map(ARABIC_TO_ENGLISH)
+            
+            fig_map = px.choropleth(
+                map_data,
+                locations='country_en',
+                locationmode='country names',
                 color='count',
+                hover_name='country_ar',
                 color_continuous_scale='Viridis',
-                labels={'count': 'عدد الطلاب', 'country': 'الدولة'},
-                title="أفضل 15 دولة حسب عدد الطلاب"
+                labels={'count': 'عدد الطلاب'}
             )
-            st.plotly_chart(fig_country, use_container_width=True)
+            fig_map.update_layout(
+                geo=dict(
+                    showframe=False,
+                    showcoastlines=False,
+                    projection_type='equirectangular'
+                )
+            )
+            st.plotly_chart(format_plot(fig_map), use_container_width=True)
         
         with col2:
             # Country statistics
@@ -636,13 +510,11 @@ def main():
             college_counts,
             x='college',
             y='count',
-            color='count',
-            color_continuous_scale='Sunset',
-            labels={'count': 'عدد الطلاب', 'college': 'الكلية'},
-            title="أفضل 10 كليات"
+            labels={'count': 'عدد الطلاب', 'college': 'الكلية'}
         )
+        fig_university.update_traces(marker_color='#0d6efd')
         fig_university.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_university, use_container_width=True)
+        st.plotly_chart(format_plot(fig_university), use_container_width=True)
     
     with tab3:
         # Academic Performance tab
@@ -656,10 +528,9 @@ def main():
                 x='gpa',
                 nbins=20,
                 color_discrete_sequence=['#00CC96'],
-                labels={'gpa': 'المعدل التراكمي', 'count': 'عدد الطلاب'},
-                title="توزيع المعدل التراكمي"
+                labels={'gpa': 'المعدل التراكمي', 'count': 'عدد الطلاب'}
             )
-            st.plotly_chart(fig_gpa_hist, use_container_width=True)
+            st.plotly_chart(format_plot(fig_gpa_hist), use_container_width=True)
         
         with col2:
             # Average GPA by Program
@@ -669,30 +540,30 @@ def main():
                 avg_gpa_program,
                 x='program',
                 y='gpa',
-                color='gpa',
-                color_continuous_scale='RdYlGn',
-                labels={'gpa': 'متوسط المعدل', 'program': 'البرنامج'},
-                title="متوسط المعدل حسب البرنامج"
+                labels={'gpa': 'متوسط المعدل', 'program': 'البرنامج'}
             )
+            fig_gpa_program.update_traces(marker_color='#0d6efd')
             fig_gpa_program.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig_gpa_program, use_container_width=True)
+            st.plotly_chart(format_plot(fig_gpa_program), use_container_width=True)
         
-        # Age Distribution
-        st.subheader("توزيع الساعات المكتسبة")
-        hours_df = filtered_df.dropna(subset=['hours'])
-        if hours_df.empty:
-            st.info("لا توجد بيانات ساعات لعرضها")
+        # KDE Chart of GPA
+        st.subheader("توزيع كثافة المعدل التراكمي (KDE)")
+        gpa_data = filtered_df['gpa'].dropna()
+        if gpa_data.empty or len(gpa_data) < 2:
+            st.info("لا توجد بيانات كافية لعرض الرسم البياني")
         else:
-            fig_hours = px.box(
-                hours_df,
-                x='program',
-                y='hours',
-                color='program',
-                labels={'hours': 'الساعات المكتسبة', 'program': 'البرنامج'},
-                title="توزيع الساعات المكتسبة حسب البرنامج"
+            # Calculate KDE manually to avoid scipy dependency
+            x_kde, y_kde = gaussian_kde(gpa_data)
+            
+            fig_kde = px.area(
+                x=x_kde, 
+                y=y_kde,
+                labels={'x': 'المعدل التراكمي', 'y': 'الكثافة'}
             )
-            fig_hours.update_layout(xaxis_tickangle=-45, showlegend=False)
-            st.plotly_chart(fig_hours, use_container_width=True)
+            # Fix: 'fill_color' is not a valid property for update_traces in this context.
+            # Use 'fillcolor' (no underscore) for area charts in Plotly.
+            fig_kde.update_traces(line_color='#0d6efd', fillcolor='rgba(13, 110, 253, 0.2)')
+            st.plotly_chart(format_plot(fig_kde), use_container_width=True)
         
         # GPA by Country (Top 10)
         st.subheader("متوسط المعدل حسب الدولة (أفضل 10)")
@@ -701,12 +572,10 @@ def main():
             avg_gpa_country,
             x='country',
             y='gpa',
-            color='gpa',
-            color_continuous_scale='Plasma',
-            labels={'gpa': 'متوسط المعدل', 'country': 'الدولة'},
-            title="أفضل 10 دول حسب متوسط المعدل"
+            labels={'gpa': 'متوسط المعدل', 'country': 'الدولة'}
         )
-        st.plotly_chart(fig_gpa_country, use_container_width=True)
+        fig_gpa_country.update_traces(marker_color='#0d6efd')
+        st.plotly_chart(format_plot(fig_gpa_country), use_container_width=True)
     
     with tab4:
         # Data Table tab
@@ -730,6 +599,7 @@ def main():
             "student_id": "الرقم الجامعي",
             "name": "الاسم",
             "country": "الدولة",
+            "continent": "القارة",
             "program": "التخصص",
             "college": "الكلية",
             "status": "الحالة المختصرة",
@@ -761,12 +631,7 @@ def main():
             file_name=f"international_students_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
         )
-        
-        # Summary statistics
-        st.subheader("الإحصائيات الموجزة")
-        numeric_summary = display_df.select_dtypes(include=['number']).describe()
-        st.dataframe(numeric_summary, use_container_width=True)
-    
+
     # Footer
     st.markdown("---")
     st.markdown(
