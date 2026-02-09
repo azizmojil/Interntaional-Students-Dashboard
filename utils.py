@@ -1,8 +1,9 @@
 import re
 import pandas as pd
 
-# Constant for undefined/unspecified values
+# Constants for undefined/unspecified values
 UNDEFINED_AR = "غير محدد"
+UNDEFINED_EN = "Undefined"
 
 # Unified nationality mapping dictionary
 # Keys are exact nationalities from the data file (including those with trailing spaces)
@@ -201,7 +202,7 @@ ENGLISH_TO_ARABIC = {}
 for mapping in NATIONALITY_MAPPING.values():
     country_ar = mapping["country_ar"]
     country_en = mapping["country_en"]
-    if country_en not in ENGLISH_TO_ARABIC and country_ar != UNDEFINED_AR and country_en != "Undefined":
+    if country_en not in ENGLISH_TO_ARABIC and country_ar != UNDEFINED_AR and country_en != UNDEFINED_EN:
         ENGLISH_TO_ARABIC[country_en] = country_ar
 
 # Build COUNTRY_TO_CONTINENT from NATIONALITY_MAPPING for backward compatibility
