@@ -66,18 +66,16 @@ The dashboard will open automatically in your default web browser at `http://loc
 
 ## Data Structure
 
-The dashboard uses a CSV file (`data/students_data.csv`) with the following fields:
-- `student_id`: Unique identifier
-- `name`: Student name
-- `country`: Country of origin
-- `university`: Enrolled university
-- `program`: Academic program
-- `enrollment_date`: Date of enrollment
-- `graduation_date`: Expected/actual graduation date
-- `gpa`: Grade Point Average
-- `age`: Student age
-- `gender`: Gender
-- `status`: Active/Graduated
+The dashboard now reads the provided Excel source (`data/data.xlsx`) and normalizes it inside the app. Key input fields include:
+- `STD_ID`, `STD_NAME`, `GENDER`
+- `CITZ_DESC` (nationality) → mapped to country names
+- `MAJR_DESC`, `COLL_DESC`, `LEVL_DESC`
+- `STD_GPA`, `STD_HRS`
+- `LAST_STST` (detailed status) → grouped into concise status buckets
+- `CELG_CODE` (internal/external scholarship)
+- `TERM_ADMIT`, `LAST_TERM` (hijri terms converted to approximate Gregorian years for trend lines)
+
+Derived columns such as `country`, `program`, `college`, `status`, `gpa`, and `timeline_year` are created during load time to power the visualizations and filters.
 
 ## Technologies Used
 
