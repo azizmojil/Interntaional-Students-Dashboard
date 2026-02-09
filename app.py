@@ -226,6 +226,36 @@ st.markdown("""
         margin: 18px 0;
         border-bottom: 1px solid var(--border);
     }
+    
+    /* Hide header anchor links */
+    [data-testid="stHeaderActionElements"] {
+        display: none !important;
+    }
+    
+    /* Hide all anchor tags inside headers */
+    h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+        display: none !important;
+    }
+    
+    /* Hide anchor links by href pattern (internal links) */
+    a[href^="#"] {
+        display: none !important;
+    }
+    
+    /* Hide specific anchor class if present */
+    a.anchor-link {
+        display: none !important;
+    }
+    
+    /* Hide anchor links (chain icon) next to headers */
+    [data-testid="stMarkdownContainer"] h1 a,
+    [data-testid="stMarkdownContainer"] h2 a,
+    [data-testid="stMarkdownContainer"] h3 a,
+    [data-testid="stMarkdownContainer"] h4 a,
+    [data-testid="stMarkdownContainer"] h5 a,
+    [data-testid="stMarkdownContainer"] h6 a {
+        display: none !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -666,17 +696,6 @@ def main():
             file_name=f"international_students_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
         )
-
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        """
-        <div style='text-align: center'>
-            <p>لوحة معلومات الطلاب الدوليين | مبني بواسطة Streamlit 🎓</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 if __name__ == "__main__":
     main()
