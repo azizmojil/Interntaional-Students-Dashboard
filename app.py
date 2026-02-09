@@ -48,12 +48,20 @@ st.markdown("""
     
     /* Improve input visibility - targeting Streamlit widgets specifically */
     .stSelectbox div[data-baseweb="select"] > div,
-    .stSelectbox div[data-baseweb="select"] span,
+    .stSelectbox div[data-baseweb="select"] span {
+        color: #111827 !important;
+        -webkit-text-fill-color: #111827 !important;
+        caret-color: #111827 !important;
+    }
+
+    /* Force input text color and background */
+    input[type="text"],
     .stTextInput input,
     .stNumberInput input {
         color: #111827 !important;
         -webkit-text-fill-color: #111827 !important;
         caret-color: #111827 !important;
+        background-color: #ffffff !important;
     }
     
     /* Placeholder styling */
@@ -61,6 +69,7 @@ st.markdown("""
     .stNumberInput input::placeholder {
         color: #6b7280 !important;
         opacity: 1 !important;
+        -webkit-text-fill-color: #6b7280 !important;
     }
     
     /* Dropdown menu items */
@@ -332,6 +341,190 @@ def gaussian_kde(data, bandwidth=None):
     
     return x, pdf
 
+
+def build_intake_df_from_upload(
+    applicants_df: pd.DataFrame,
+    current_students_df: pd.DataFrame,   # pass FULL df (unfiltered)
+    exclude_ksa: bool = True,
+    current_country_col: str = "country"
+):
+    """
+    applicants_df must have: country, applicants
+    current_students_df must have: country (already mapped in your app's load_data)
+    Returns: country, continent, applicants, current_students
+    """
+    req = {"country", "applicants"}
+    if not req.issubset(applicants_df.columns):
+        raise ValueError("Uploaded file must contain columns: country, applicants")
+
+    up = applicants_df.copy()
+    up["country"] = up["country"].astype(str).str.strip()
+    up["applicants"] = pd.to_numeric(up["applicants"], errors="coerce").fillna(0).astype(int)
+
+    # Normalize uploaded country to match your dashboard naming
+    up["country"] = up["country"].apply(map_country)
+
+    # Compute continent internally (no continent column needed)
+    up["continent"] = up["country"].apply(map_continent)
+
+    # Current students: DO NOT re-map; load_data already mapped it
+    cur = current_students_df.copy()
+    if current_country_col not in cur.columns:
+        raise ValueError(f"current_students_df must contain '{current_country_col}'")
+
+    cur[current_country_col] = cur[current_country_col].astype(str).str.strip()
+    current_counts = cur.groupby(current_country_col).size().rename("current_students").reset_index()
+    current_counts = current_counts.rename(columns={current_country_col: "country"})
+
+    out = up.merge(current_counts, on="country", how="left")
+    out["current_students"] = out["current_students"].fillna(0).astype(int)
+
+    # Remove KSA (international only)
+    if exclude_ksa:
+        ksa_variants = {
+            "المملكة العربية السعودية", "السعودية",
+            "Saudi Arabia", "KSA", "Kingdom of Saudi Arabia"
+        }
+        out = out[~out["country"].isin(ksa_variants)].copy()
+
+    out = out[out["applicants"] > 0].copy()
+
+    return out[["country", "continent", "applicants", "current_students"]]
+
+
+def allocate_seats_post_intake_representation(
+    df: pd.DataFrame,
+    seats: int,
+    min_per_country: int = 0,
+    max_seat_share: float = 1.0,
+    max_post_share: float = 1.0,
+):
+    """
+    Balance post-intake representation using applicants as target weights.
+
+    Required columns in df:
+      - country
+      - applicants
+      - current_students
+
+    Constraints:
+      - min_per_country: lower bound on admits per country (applied if feasible)
+      - max_seat_share: admits_i <= floor(seats * max_seat_share)
+      - max_post_share: (current_i + admits_i) <= floor(max_post_share * (total_current + seats))
+
+    Returns df with:
+      target_admits, post_total, post_share, target_weight
+    """
+
+    data = df.copy()
+    for col in ["applicants", "current_students"]:
+        data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0).astype(int)
+
+    data = data[data["applicants"] > 0].copy()
+
+    if data.empty or seats <= 0:
+        data["target_admits"] = 0
+        data["post_total"] = data["current_students"]
+        data["post_share"] = 0.0
+        data["target_weight"] = 0.0
+        return data
+
+    seats = int(seats)
+    min_per_country = int(min_per_country)
+    max_seat_share = float(max_seat_share)
+    max_post_share = float(max_post_share)
+
+    total_apps = int(data["applicants"].sum())
+    total_current = int(data["current_students"].sum())
+    post_total_all = total_current + seats
+
+    # Target weights based on applicants
+    data["target_weight"] = data["applicants"] / total_apps
+
+    # Ideal post-intake totals and raw "top-up" need
+    ideal_post_total = data["target_weight"] * post_total_all
+    raw_need = (ideal_post_total - data["current_students"]).clip(lower=0)
+
+    # If nobody needs seats (current already exceeds targets everywhere), fall back to weights
+    if raw_need.sum() <= 0:
+        raw_need = data["target_weight"].copy()
+
+    # Scale needs to sum to seats
+    scaled = raw_need * (seats / raw_need.sum())
+    admits = np.floor(scaled).astype(int)
+
+    # Caps
+    cap_seat = int(np.floor(seats * max_seat_share))
+    cap_seat = max(0, cap_seat)
+
+    cap_post = np.floor(max_post_share * post_total_all - data["current_students"]).astype(int)
+    cap_post = cap_post.clip(lower=0)
+
+    cap_final = np.minimum(cap_seat, cap_post)
+
+    # Apply caps (cap beats min if infeasible)
+    admits = np.minimum(admits, cap_final)
+
+    # Try to apply minimums only where possible
+    if min_per_country > 0:
+        admits = np.minimum(np.maximum(admits, min_per_country), cap_final)
+
+    data["target_admits"] = admits.astype(int)
+
+    def remaining():
+        return int(seats - data["target_admits"].sum())
+
+    rem = remaining()
+
+    # Distribute remaining seats by largest fractional remainder of 'scaled', respecting caps
+    frac = (scaled - np.floor(scaled)).to_numpy()
+    guard = 0
+    while rem > 0 and guard < 10_000_000:
+        guard += 1
+        eligible = data["target_admits"].to_numpy() < cap_final.to_numpy()
+        if not eligible.any():
+            break
+        # pick eligible with highest frac; if ties/zero, use target_weight
+        score = np.where(eligible, frac, -np.inf)
+        idx = int(np.argmax(score))
+        if not np.isfinite(score[idx]):
+            # fallback: weight-based
+            score2 = np.where(eligible, data["target_weight"].to_numpy(), -np.inf)
+            idx = int(np.argmax(score2))
+            if not np.isfinite(score2[idx]):
+                break
+        data.iloc[idx, data.columns.get_loc("target_admits")] += 1
+        rem = remaining()
+
+    # If overshot (can happen when mins bind), remove from lowest priority above min
+    guard = 0
+    while rem < 0 and guard < 10_000_000:
+        guard += 1
+        can_remove = data["target_admits"] > max(0, min_per_country)
+        if not can_remove.any():
+            break
+        # remove from those with smallest fractional remainder (or smallest weight)
+        score = np.where(can_remove.to_numpy(), frac, np.inf)
+        idx = int(np.argmin(score))
+        data.iloc[idx, data.columns.get_loc("target_admits")] -= 1
+        rem = remaining()
+
+    # Post-intake diagnostics
+    data["post_total"] = data["current_students"] + data["target_admits"]
+    data["post_share"] = data["post_total"] / float(post_total_all)
+
+    return data.sort_values("target_admits", ascending=False).reset_index(drop=True)
+
+
+def herfindahl_share(counts: pd.Series) -> float:
+    """Concentration index: sum_i (share_i^2). Lower = more balanced."""
+    total = counts.sum()
+    if total <= 0:
+        return 0.0
+    s = (counts / total).astype(float)
+    return float((s * s).sum())
+
+
 # Main app
 def main():
     # Title
@@ -447,8 +640,144 @@ def main():
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
     # Create tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات"])
-    
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات", "🎯 خطة القبول"])
+
+    with tab5:
+        st.subheader("🎯 خطة القبول لتحقيق توازن التمثيل بعد القبول (Stock + Flow)")
+
+        st.markdown("""
+        **الفكرة:** نستخدم عدد المتقدمين كـ *وزن مستهدف* لتوزيع إجمالي الطلاب بعد القبول
+        (الطلاب الحاليين + المقبولين الجدد).  
+        ثم نحسب القبول المطلوب لكل دولة كـ **تعويض/تغذية (Top-up)** للوصول لهذا التمثيل،
+        مع قيود اختيارية لتجنب التركز.
+        """)
+
+        colA, colB, colC, colD = st.columns(4)
+        seats = colA.number_input("عدد المقاعد المتاحة", min_value=0, value=300, step=10)
+        min_per_country = colB.number_input("حد أدنى للمقبولين لكل دولة", min_value=0, value=0, step=1)
+        max_share = colC.slider("حد أقصى كنسبة من المقاعد الجديدة لكل دولة", min_value=0.05, max_value=1.0, value=0.25,
+                                step=0.05)
+        max_post_share = colD.slider("حد أقصى للتمثيل بعد القبول (نسبة من الإجمالي)", min_value=0.02, max_value=1.0,
+                                     value=0.10, step=0.01)
+
+        st.markdown("### 1) ارفع ملف المتقدمين (CSV)")
+        st.caption("الأعمدة المطلوبة: country, applicants  (والدولة يمكن أن تكون عربي/إنجليزي حسب mapping لديك)")
+        uploaded = st.file_uploader("Upload applicants.csv", type=["csv"], key="applicants_upload")
+
+        if uploaded is None:
+            st.info("ارفع ملف المتقدمين لإنتاج الخطة والخرائط.")
+        else:
+            applicants_df = pd.read_csv(uploaded)
+
+            if not {"country", "applicants"}.issubset(applicants_df.columns):
+                st.error("الملف يجب أن يحتوي الأعمدة: country, applicants")
+            else:
+                # Build intake df using your existing current dataset
+                intake_df = build_intake_df_from_upload(
+                    applicants_df=applicants_df,
+                    current_students_df=df,
+                    exclude_ksa=True
+                )
+
+                if intake_df.empty:
+                    st.warning("لا توجد صفوف صالحة بعد المعالجة (تحقق من أسماء الدول أو أن applicants > 0).")
+                else:
+                    plan = allocate_seats_post_intake_representation(
+                        df=intake_df,
+                        seats=int(seats),
+                        min_per_country=int(min_per_country),
+                        max_seat_share=float(max_share),
+                        max_post_share=float(max_post_share),
+                    )
+
+                    # ---- KPIs
+                    total_apps = int(plan["applicants"].sum())
+                    total_admits = int(plan["target_admits"].sum())
+                    total_current = int(plan["current_students"].sum())
+                    post_total_all = total_current + int(seats)
+
+                    # Intake acceptance rate (diagnostic only)
+                    intake_rate = (total_admits / total_apps) if total_apps else 0.0
+                    hhi = herfindahl_share(plan["target_admits"])
+
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("إجمالي المتقدمين", f"{total_apps:,}")
+                    m2.metric("الطلاب الحاليين (للبلدان الموجودة بالملف)", f"{total_current:,}")
+                    m3.metric("المقبولين الجدد (المخطط)", f"{total_admits:,}")
+                    m4.metric("معدل القبول (للمتقدمين فقط)", f"{intake_rate:.2%}")
+
+                    st.caption(
+                        f"مؤشر التركز (Herfindahl) للمقاعد الجديدة = {hhi:.4f} — كلما كان أقل كان التوزيع أكثر توازناً.")
+
+                    # ---- Map
+                    st.markdown("### 2) الخريطة العالمية للمقاعد المقترحة")
+                    plan_map = plan.copy()
+
+                    # Map Arabic -> English names for Plotly if available
+                    if "ARABIC_TO_ENGLISH" in globals():
+                        plan_map["country_en"] = plan_map["country"].map(ARABIC_TO_ENGLISH).fillna(plan_map["country"])
+                    else:
+                        plan_map["country_en"] = plan_map["country"]
+
+                    fig_map = px.choropleth(
+                        plan_map,
+                        locations="country_en",
+                        locationmode="country names",
+                        color="target_admits",
+                        hover_name="country",
+                        hover_data={
+                            "applicants": True,
+                            "current_students": True,
+                            "target_admits": True,
+                            "post_total": True,
+                            "post_share": ":.2%",
+                            "target_weight": ":.2%"
+                        },
+                        labels={"target_admits": "المقاعد المقترحة"}
+                    )
+                    fig_map.update_layout(
+                        geo=dict(showframe=False, showcoastlines=False, projection_type="equirectangular"))
+                    st.plotly_chart(fig_map, use_container_width=True)
+
+                    # ---- Top bar
+                    st.markdown("### 3) أعلى الدول من حيث المقاعد المقترحة")
+                    topN = plan.sort_values("target_admits", ascending=False).head(20).copy()
+                    fig_bar = px.bar(
+                        topN,
+                        x="country",
+                        y="target_admits",
+                        hover_data={
+                            "applicants": True,
+                            "current_students": True,
+                            "post_share": ":.2%"
+                        },
+                        labels={"country": "الدولة", "target_admits": "المقاعد المقترحة"}
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+
+                    # ---- Table + download
+                    st.markdown("### 4) جدول الخطة")
+                    show = plan.rename(columns={
+                        "country": "الدولة",
+                        "continent": "القارة",
+                        "applicants": "عدد المتقدمين",
+                        "current_students": "الطلاب الحاليين",
+                        "target_admits": "المقاعد المقترحة",
+                        "post_total": "إجمالي بعد القبول",
+                        "post_share": "حصة بعد القبول",
+                        "target_weight": "وزن مستهدف"
+                    })
+                    st.dataframe(show, use_container_width=True, hide_index=True)
+
+                    csv = show.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        "📥 تنزيل خطة القبول (CSV)",
+                        data=csv,
+                        file_name="admissions_plan.csv",
+                        mime="text/csv",
+                    )
+
     with tab1:
         # Overview tab
         col1, col2 = st.columns(2)
