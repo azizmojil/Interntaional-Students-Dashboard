@@ -7,15 +7,19 @@ import numpy as np
 
 # Page configuration
 st.set_page_config(
-    page_title="International Students Dashboard",
+    page_title="لوحة معلومات الطلاب الدوليين",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Custom CSS for better styling with RTL support
 st.markdown("""
     <style>
+    * {
+        direction: rtl;
+        text-align: right;
+    }
     .main {
         padding: 0rem 1rem;
     }
@@ -23,6 +27,9 @@ st.markdown("""
         background-color: #f0f2f6;
         padding: 15px;
         border-radius: 10px;
+    }
+    .stMetric label {
+        direction: rtl;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -36,44 +43,44 @@ def load_data():
         df['graduation_date'] = pd.to_datetime(df['graduation_date'])
         return df
     except FileNotFoundError:
-        st.error("❌ Data file not found! Please ensure 'data/students_data.csv' exists.")
+        st.error("❌ ملف البيانات غير موجود! يرجى التأكد من وجود 'data/students_data.csv'.")
         st.stop()
     except Exception as e:
-        st.error(f"❌ Error loading data: {str(e)}")
+        st.error(f"❌ خطأ في تحميل البيانات: {str(e)}")
         st.stop()
 
 # Main app
 def main():
     # Title
-    st.title("🎓 International Students Dashboard")
-    st.markdown("### Business Intelligence Analytics for International Student Data")
+    st.title("🎓 لوحة معلومات الطلاب الدوليين")
+    st.markdown("### تحليلات ذكاء الأعمال لبيانات الطلاب الدوليين")
     
     # Load data
     df = load_data()
     
     # Sidebar filters
-    st.sidebar.header("📊 Filters")
+    st.sidebar.header("📊 الفلاتر")
     
     # Country filter
-    countries = ['All'] + sorted(df['country'].unique().tolist())
-    selected_country = st.sidebar.selectbox("Select Country", countries)
+    countries = ['الكل'] + sorted(df['country'].unique().tolist())
+    selected_country = st.sidebar.selectbox("اختر الدولة", countries)
     
     # Program filter
-    programs = ['All'] + sorted(df['program'].unique().tolist())
-    selected_program = st.sidebar.selectbox("Select Program", programs)
+    programs = ['الكل'] + sorted(df['program'].unique().tolist())
+    selected_program = st.sidebar.selectbox("اختر البرنامج", programs)
     
     # Status filter
-    status_options = ['All'] + sorted(df['status'].unique().tolist())
-    selected_status = st.sidebar.selectbox("Select Status", status_options)
+    status_options = ['الكل'] + sorted(df['status'].unique().tolist())
+    selected_status = st.sidebar.selectbox("اختر الحالة", status_options)
     
     # Gender filter
-    gender_options = ['All'] + sorted(df['gender'].unique().tolist())
-    selected_gender = st.sidebar.selectbox("Select Gender", gender_options)
+    gender_options = ['الكل'] + sorted(df['gender'].unique().tolist())
+    selected_gender = st.sidebar.selectbox("اختر الجنس", gender_options)
     
     # GPA range filter
-    st.sidebar.markdown("**GPA Range**")
+    st.sidebar.markdown("**نطاق المعدل التراكمي**")
     gpa_range = st.sidebar.slider(
-        "Select GPA Range",
+        "اختر نطاق المعدل التراكمي",
         min_value=float(df['gpa'].min()),
         max_value=float(df['gpa'].max()),
         value=(float(df['gpa'].min()), float(df['gpa'].max())),
@@ -82,13 +89,13 @@ def main():
     
     # Apply filters
     filtered_df = df.copy()
-    if selected_country != 'All':
+    if selected_country != 'الكل':
         filtered_df = filtered_df[filtered_df['country'] == selected_country]
-    if selected_program != 'All':
+    if selected_program != 'الكل':
         filtered_df = filtered_df[filtered_df['program'] == selected_program]
-    if selected_status != 'All':
+    if selected_status != 'الكل':
         filtered_df = filtered_df[filtered_df['status'] == selected_status]
-    if selected_gender != 'All':
+    if selected_gender != 'الكل':
         filtered_df = filtered_df[filtered_df['gender'] == selected_gender]
     filtered_df = filtered_df[(filtered_df['gpa'] >= gpa_range[0]) & (filtered_df['gpa'] <= gpa_range[1])]
     
@@ -97,20 +104,20 @@ def main():
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        st.metric("Total Students", len(filtered_df))
+        st.metric("إجمالي الطلاب", len(filtered_df))
     with col2:
-        st.metric("Active Students", len(filtered_df[filtered_df['status'] == 'Active']))
+        st.metric("الطلاب النشطون", len(filtered_df[filtered_df['status'] == 'Active']))
     with col3:
-        st.metric("Graduated", len(filtered_df[filtered_df['status'] == 'Graduated']))
+        st.metric("الخريجون", len(filtered_df[filtered_df['status'] == 'Graduated']))
     with col4:
-        st.metric("Avg GPA", f"{filtered_df['gpa'].mean():.2f}")
+        st.metric("متوسط المعدل", f"{filtered_df['gpa'].mean():.2f}")
     with col5:
-        st.metric("Countries", filtered_df['country'].nunique())
+        st.metric("الدول", filtered_df['country'].nunique())
     
     st.markdown("---")
     
     # Create tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Overview", "🌍 Geographic Analysis", "📊 Academic Performance", "📋 Data Table"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات"])
     
     with tab1:
         # Overview tab
@@ -118,7 +125,7 @@ def main():
         
         with col1:
             # Students by Program
-            st.subheader("Students by Program")
+            st.subheader("الطلاب حسب البرنامج")
             program_counts = filtered_df['program'].value_counts().reset_index()
             program_counts.columns = ['program', 'count']
             fig_program = px.bar(
@@ -127,22 +134,22 @@ def main():
                 y='count',
                 color='count',
                 color_continuous_scale='Blues',
-                labels={'count': 'Number of Students', 'program': 'Program'},
-                title="Distribution by Program"
+                labels={'count': 'عدد الطلاب', 'program': 'البرنامج'},
+                title="التوزيع حسب البرنامج"
             )
             fig_program.update_layout(showlegend=False)
             st.plotly_chart(fig_program, use_container_width=True)
         
         with col2:
             # Students by Status
-            st.subheader("Students by Status")
+            st.subheader("الطلاب حسب الحالة")
             status_counts = filtered_df['status'].value_counts().reset_index()
             status_counts.columns = ['status', 'count']
             fig_status = px.pie(
                 status_counts,
                 values='count',
                 names='status',
-                title="Distribution by Status",
+                title="التوزيع حسب الحالة",
                 color_discrete_sequence=px.colors.qualitative.Set2
             )
             st.plotly_chart(fig_status, use_container_width=True)
@@ -151,21 +158,21 @@ def main():
         
         with col3:
             # Gender Distribution
-            st.subheader("Gender Distribution")
+            st.subheader("التوزيع حسب الجنس")
             gender_counts = filtered_df['gender'].value_counts().reset_index()
             gender_counts.columns = ['gender', 'count']
             fig_gender = px.pie(
                 gender_counts,
                 values='count',
                 names='gender',
-                title="Distribution by Gender",
+                title="التوزيع حسب الجنس",
                 color_discrete_sequence=px.colors.qualitative.Pastel
             )
             st.plotly_chart(fig_gender, use_container_width=True)
         
         with col4:
             # Enrollment Trend
-            st.subheader("Enrollment Trend")
+            st.subheader("اتجاه التسجيل")
             enrollment_by_date = filtered_df.groupby(filtered_df['enrollment_date'].dt.year).size().reset_index()
             enrollment_by_date.columns = ['year', 'count']
             fig_trend = px.line(
@@ -173,8 +180,8 @@ def main():
                 x='year',
                 y='count',
                 markers=True,
-                title="Enrollment Trend by Year",
-                labels={'count': 'Number of Students', 'year': 'Year'}
+                title="اتجاه التسجيل حسب السنة",
+                labels={'count': 'عدد الطلاب', 'year': 'السنة'}
             )
             fig_trend.update_traces(line_color='#636EFA', line_width=3)
             st.plotly_chart(fig_trend, use_container_width=True)
@@ -185,7 +192,7 @@ def main():
         
         with col1:
             # Students by Country (Top 15)
-            st.subheader("Top Countries")
+            st.subheader("أفضل الدول")
             country_counts = filtered_df['country'].value_counts().head(15).reset_index()
             country_counts.columns = ['country', 'count']
             fig_country = px.bar(
@@ -195,24 +202,24 @@ def main():
                 orientation='h',
                 color='count',
                 color_continuous_scale='Viridis',
-                labels={'count': 'Number of Students', 'country': 'Country'},
-                title="Top 15 Countries by Student Count"
+                labels={'count': 'عدد الطلاب', 'country': 'الدولة'},
+                title="أفضل 15 دولة حسب عدد الطلاب"
             )
             st.plotly_chart(fig_country, use_container_width=True)
         
         with col2:
             # Country statistics
-            st.subheader("Country Statistics")
+            st.subheader("إحصائيات الدول")
             country_stats = filtered_df.groupby('country').agg({
                 'student_id': 'count',
                 'gpa': 'mean'
             }).round(2).reset_index()
-            country_stats.columns = ['Country', 'Students', 'Avg GPA']
-            country_stats = country_stats.sort_values('Students', ascending=False).head(10)
+            country_stats.columns = ['الدولة', 'الطلاب', 'متوسط المعدل']
+            country_stats = country_stats.sort_values('الطلاب', ascending=False).head(10)
             st.dataframe(country_stats, hide_index=True, use_container_width=True)
         
         # University Distribution
-        st.subheader("Top Universities")
+        st.subheader("أفضل الجامعات")
         university_counts = filtered_df['university'].value_counts().head(10).reset_index()
         university_counts.columns = ['university', 'count']
         fig_university = px.bar(
@@ -221,8 +228,8 @@ def main():
             y='count',
             color='count',
             color_continuous_scale='Sunset',
-            labels={'count': 'Number of Students', 'university': 'University'},
-            title="Top 10 Universities"
+            labels={'count': 'عدد الطلاب', 'university': 'الجامعة'},
+            title="أفضل 10 جامعات"
         )
         fig_university.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig_university, use_container_width=True)
@@ -233,20 +240,20 @@ def main():
         
         with col1:
             # GPA Distribution
-            st.subheader("GPA Distribution")
+            st.subheader("توزيع المعدل التراكمي")
             fig_gpa_hist = px.histogram(
                 filtered_df,
                 x='gpa',
                 nbins=20,
                 color_discrete_sequence=['#00CC96'],
-                labels={'gpa': 'GPA', 'count': 'Number of Students'},
-                title="GPA Distribution"
+                labels={'gpa': 'المعدل التراكمي', 'count': 'عدد الطلاب'},
+                title="توزيع المعدل التراكمي"
             )
             st.plotly_chart(fig_gpa_hist, use_container_width=True)
         
         with col2:
             # Average GPA by Program
-            st.subheader("Average GPA by Program")
+            st.subheader("متوسط المعدل حسب البرنامج")
             avg_gpa_program = filtered_df.groupby('program')['gpa'].mean().sort_values(ascending=False).reset_index()
             fig_gpa_program = px.bar(
                 avg_gpa_program,
@@ -254,27 +261,27 @@ def main():
                 y='gpa',
                 color='gpa',
                 color_continuous_scale='RdYlGn',
-                labels={'gpa': 'Average GPA', 'program': 'Program'},
-                title="Average GPA by Program"
+                labels={'gpa': 'متوسط المعدل', 'program': 'البرنامج'},
+                title="متوسط المعدل حسب البرنامج"
             )
             fig_gpa_program.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig_gpa_program, use_container_width=True)
         
         # Age Distribution
-        st.subheader("Age Distribution")
+        st.subheader("توزيع الأعمار")
         fig_age = px.box(
             filtered_df,
             x='program',
             y='age',
             color='program',
-            labels={'age': 'Age', 'program': 'Program'},
-            title="Age Distribution by Program"
+            labels={'age': 'العمر', 'program': 'البرنامج'},
+            title="توزيع الأعمار حسب البرنامج"
         )
         fig_age.update_layout(xaxis_tickangle=-45, showlegend=False)
         st.plotly_chart(fig_age, use_container_width=True)
         
         # GPA by Country (Top 10)
-        st.subheader("Average GPA by Country (Top 10)")
+        st.subheader("متوسط المعدل حسب الدولة (أفضل 10)")
         avg_gpa_country = filtered_df.groupby('country')['gpa'].mean().sort_values(ascending=False).head(10).reset_index()
         fig_gpa_country = px.bar(
             avg_gpa_country,
@@ -282,17 +289,17 @@ def main():
             y='gpa',
             color='gpa',
             color_continuous_scale='Plasma',
-            labels={'gpa': 'Average GPA', 'country': 'Country'},
-            title="Top 10 Countries by Average GPA"
+            labels={'gpa': 'متوسط المعدل', 'country': 'الدولة'},
+            title="أفضل 10 دول حسب متوسط المعدل"
         )
         st.plotly_chart(fig_gpa_country, use_container_width=True)
     
     with tab4:
         # Data Table tab
-        st.subheader("Student Data")
+        st.subheader("بيانات الطلاب")
         
         # Search functionality
-        search_term = st.text_input("🔍 Search by name, country, or university", "")
+        search_term = st.text_input("🔍 البحث بالاسم أو الدولة أو الجامعة", "")
         
         if search_term:
             mask = (
@@ -314,14 +321,14 @@ def main():
         # Download button
         csv = display_df.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Download Data as CSV",
+            label="📥 تحميل البيانات كملف CSV",
             data=csv,
             file_name=f"international_students_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
         )
         
         # Summary statistics
-        st.subheader("Summary Statistics")
+        st.subheader("الإحصائيات الموجزة")
         st.dataframe(display_df.describe(), use_container_width=True)
     
     # Footer
@@ -329,7 +336,7 @@ def main():
     st.markdown(
         """
         <div style='text-align: center'>
-            <p>International Students Dashboard | Built with Streamlit 🎓</p>
+            <p>لوحة معلومات الطلاب الدوليين | مبني بواسطة Streamlit 🎓</p>
         </div>
         """,
         unsafe_allow_html=True
