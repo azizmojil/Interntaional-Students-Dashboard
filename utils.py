@@ -1,6 +1,9 @@
 import re
 import pandas as pd
 
+# Constant for undefined/unspecified values
+UNDEFINED_AR = "غير محدد"
+
 # Unified nationality mapping dictionary
 # Keys are exact nationalities from the data file (including those with trailing spaces)
 # Values contain both Arabic and English country names
@@ -155,11 +158,15 @@ def _get_country_ar(nationality: str) -> str:
     for key, value in NATIONALITY_MAPPING.items():
         if key.strip() == stripped:
             return value["country_ar"]
-    return stripped if stripped else "غير محدد"
+    return stripped if stripped else UNDEFINED_AR
 
 # Helper function to get English country name from Arabic country name
 def _get_country_en(country_ar: str) -> str | None:
-    """Get English country name from Arabic country name."""
+    """Get English country name from Arabic country name.
+    
+    Note: This is an internal helper used for building ARABIC_TO_ENGLISH.
+    Returns None if the country is not found in the mapping.
+    """
     for mapping in NATIONALITY_MAPPING.values():
         if mapping["country_ar"] == country_ar:
             return mapping["country_en"]
@@ -170,7 +177,7 @@ ARABIC_TO_ENGLISH = {}
 for mapping in NATIONALITY_MAPPING.values():
     country_ar = mapping["country_ar"]
     country_en = mapping["country_en"]
-    if country_ar not in ARABIC_TO_ENGLISH and country_ar != "غير محدد":
+    if country_ar not in ARABIC_TO_ENGLISH and country_ar != UNDEFINED_AR:
         ARABIC_TO_ENGLISH[country_ar] = country_en
 
 COUNTRY_TO_CONTINENT = {
@@ -313,19 +320,19 @@ STATUS_GRAD_KEYWORDS = [
 
 def map_country(value: str) -> str:
     if pd.isna(value):
-        return "غير محدد"
+        return UNDEFINED_AR
     key = str(value)
     return _get_country_ar(key)
 
 def map_continent(value: str) -> str:
     if pd.isna(value):
-        return "غير محدد"
+        return UNDEFINED_AR
     key = str(value).strip()
-    return COUNTRY_TO_CONTINENT.get(key, "غير محدد")
+    return COUNTRY_TO_CONTINENT.get(key, UNDEFINED_AR)
 
 def categorize_status(value: str) -> str:
     if pd.isna(value):
-        return "غير محدد"
+        return UNDEFINED_AR
     text = str(value)
     if any(keyword in text for keyword in STATUS_GRAD_KEYWORDS):
         return "متخرج"
@@ -396,8 +403,8 @@ def format_hijri_date(term_value) -> str | None:
 def map_gender(value: str) -> str:
     mapping = {"M": "ذكر", "F": "أنثى"}
     if pd.isna(value):
-        return "غير محدد"
-    return mapping.get(str(value).strip(), "غير محدد")
+        return UNDEFINED_AR
+    return mapping.get(str(value).strip(), UNDEFINED_AR)
 
 # Constant for undefined trace name
 _UNDEFINED_TRACE_NAME = 'undefined'
