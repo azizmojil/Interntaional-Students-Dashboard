@@ -478,7 +478,7 @@ def main():
     
     # Display metrics as AdminKit-like stat cards
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    avg_gpa = filtered_df['gpa'].mean() if not filtered_df.empty else np.nan
+    avg_gpa = filtered_df['gpa'].mean()
     stats = [
         {
             "label": "إجمالي الطلاب",
