@@ -13,23 +13,165 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling with RTL support
+# Custom CSS to mimic an AdminKit-like layout with RTL support
 st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+    :root {
+        --primary: #0d6efd;
+        --surface: #ffffff;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+    }
+
     * {
         direction: rtl;
         text-align: right;
+        font-family: 'Inter', sans-serif;
     }
-    .main {
-        padding: 0rem 1rem;
+
+    body {
+        background: #f5f7fb;
+        color: #111827;
     }
-    .stMetric {
-        background-color: #f0f2f6;
-        padding: 15px;
+
+    .block-container {
+        padding-top: 1.2rem;
+        padding-bottom: 2rem;
+    }
+
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #111827 0%, #0b1220 100%);
+        color: #e5e7eb;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    [data-testid="stSidebar"] * {
+        color: #e5e7eb !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stSidebarNavLink"] {
         border-radius: 10px;
     }
-    .stMetric label {
-        direction: rtl;
+
+    /* Top hero */
+    .adminkit-header {
+        background: linear-gradient(135deg, #1d4ed8, #0b1220);
+        color: #ffffff;
+        border-radius: 16px;
+        padding: 22px 24px;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.25);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+    .adminkit-header .eyebrow {
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.8;
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+    .adminkit-header h2 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 700;
+    }
+    .adminkit-header .muted {
+        margin: 4px 0 0;
+        color: rgba(255,255,255,0.82);
+    }
+    .adminkit-header .pills {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .adminkit-header .pill {
+        background: rgba(255,255,255,0.16);
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-weight: 600;
+        border: 1px solid rgba(255,255,255,0.25);
+    }
+
+    /* Stat cards */
+    .stat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: 0 10px 30px rgba(17, 24, 39, 0.08);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        height: 100%;
+        transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgba(17, 24, 39, 0.12);
+    }
+    .stat-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: rgba(13, 110, 253, 0.12);
+        color: var(--accent, var(--primary));
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+        font-weight: 700;
+    }
+    .stat-content p {
+        margin: 0;
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .stat-content h3 {
+        margin: 2px 0 0;
+        font-size: 24px;
+        color: #111827;
+        font-weight: 700;
+    }
+
+    /* Tabs */
+    .stTabs [role="tablist"] {
+        gap: 0.5rem;
+    }
+    .stTabs [role="tab"] {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 14px;
+        color: #111827;
+        font-weight: 600;
+    }
+    .stTabs [role="tab"][aria-selected="true"] {
+        background: var(--primary);
+        color: #ffffff;
+        border-color: var(--primary);
+        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.2);
+    }
+
+    /* Chart & table containers */
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
+    }
+    .element-container:has(.plotly) {
+        background: var(--surface);
+        border-radius: 14px;
+        padding: 12px 12px 4px;
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
+    }
+
+    .divider {
+        margin: 18px 0;
+        border-bottom: 1px solid var(--border);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -270,6 +412,22 @@ def main():
     
     # Load data
     df = load_data()
+    
+    # Hero header inspired by AdminKit
+    st.markdown(f"""
+        <div class="adminkit-header">
+            <div>
+                <div class="eyebrow">لوحة التحكم</div>
+                <h2>تحليلات الطلاب الدوليين</h2>
+                <p class="muted">صورة عامة سريعة مع فلاتر جانبية لتخصيص العرض</p>
+            </div>
+            <div class="pills">
+                <span class="pill">تاريخ التحديث: {datetime.now().strftime('%Y/%m/%d')}</span>
+                <span class="pill">عدد السجلات: {len(df)}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
     gpa_values = df['gpa'].dropna()
     gpa_min = float(gpa_values.min()) if not gpa_values.empty else 0.0
     gpa_max = float(gpa_values.max()) if not gpa_values.empty else 5.0
@@ -318,22 +476,54 @@ def main():
     gpa_for_filter = filtered_df['gpa'].fillna(gpa_min)
     filtered_df = filtered_df[(gpa_for_filter >= gpa_range[0]) & (gpa_for_filter <= gpa_range[1])]
     
-    # Display metrics
-    st.markdown("---")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Display metrics as AdminKit-like stat cards
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    avg_gpa = filtered_df['gpa'].mean()
+    stats = [
+        {
+            "label": "إجمالي الطلاب",
+            "value": f"{len(filtered_df):,}",
+            "icon": "👥",
+            "color": "#0d6efd"
+        },
+        {
+            "label": "الطلاب النشطون",
+            "value": f"{len(filtered_df[filtered_df['status'] == 'نشط']):,}",
+            "icon": "✅",
+            "color": "#22c55e"
+        },
+        {
+            "label": "الخريجون",
+            "value": f"{len(filtered_df[filtered_df['status'] == 'متخرج']):,}",
+            "icon": "🎓",
+            "color": "#f97316"
+        },
+        {
+            "label": "متوسط المعدل",
+            "value": f"{avg_gpa:.2f}" if not np.isnan(avg_gpa) else "--",
+            "icon": "⭐",
+            "color": "#8b5cf6"
+        },
+        {
+            "label": "عدد الدول",
+            "value": f"{filtered_df['country'].nunique():,}",
+            "icon": "🌍",
+            "color": "#14b8a6"
+        }
+    ]
+    stat_cols = st.columns(len(stats))
+    for col, stat in zip(stat_cols, stats):
+        col.markdown(f"""
+            <div class="stat-card" style="--accent: {stat['color']}">
+                <div class="stat-icon">{stat['icon']}</div>
+                <div class="stat-content">
+                    <p>{stat['label']}</p>
+                    <h3>{stat['value']}</h3>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
     
-    with col1:
-        st.metric("إجمالي الطلاب", len(filtered_df))
-    with col2:
-        st.metric("الطلاب النشطون", len(filtered_df[filtered_df['status'] == 'نشط']))
-    with col3:
-        st.metric("الخريجون", len(filtered_df[filtered_df['status'] == 'متخرج']))
-    with col4:
-        st.metric("متوسط المعدل", f"{filtered_df['gpa'].mean():.2f}")
-    with col5:
-        st.metric("الدول", filtered_df['country'].nunique())
-    
-    st.markdown("---")
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
     # Create tabs for different views
     tab1, tab2, tab3, tab4 = st.tabs(["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات"])
