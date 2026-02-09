@@ -299,7 +299,7 @@ def main():
         
         # Display dataframe
         st.dataframe(
-            display_df.style.background_gradient(subset=['gpa'], cmap='RdYlGn'),
+            display_df,
             use_container_width=True,
             hide_index=True
         )
