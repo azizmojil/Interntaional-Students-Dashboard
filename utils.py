@@ -196,6 +196,14 @@ for mapping in NATIONALITY_MAPPING.values():
     if country_ar not in ARABIC_TO_ENGLISH and country_ar != UNDEFINED_AR:
         ARABIC_TO_ENGLISH[country_ar] = country_en
 
+# Build ENGLISH_TO_ARABIC reverse mapping (for accepting English country names in CSV uploads)
+ENGLISH_TO_ARABIC = {}
+for mapping in NATIONALITY_MAPPING.values():
+    country_ar = mapping["country_ar"]
+    country_en = mapping["country_en"]
+    if country_en not in ENGLISH_TO_ARABIC and country_ar != UNDEFINED_AR and country_en != "Undefined":
+        ENGLISH_TO_ARABIC[country_en] = country_ar
+
 # Build COUNTRY_TO_CONTINENT from NATIONALITY_MAPPING for backward compatibility
 COUNTRY_TO_CONTINENT = {UNDEFINED_AR: UNDEFINED_AR}
 for mapping in NATIONALITY_MAPPING.values():
@@ -221,7 +229,11 @@ STATUS_GRAD_KEYWORDS = [
 def map_country(value: str) -> str:
     if pd.isna(value):
         return UNDEFINED_AR
-    key = str(value)
+    key = str(value).strip()
+    # First try English country name mapping
+    if key in ENGLISH_TO_ARABIC:
+        return ENGLISH_TO_ARABIC[key]
+    # Then try Arabic nationality to country mapping
     return _get_country_ar(key)
 
 def map_continent(value: str) -> str:
