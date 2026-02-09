@@ -518,8 +518,8 @@ def main():
                 labels={'count': 'عدد الطلاب', 'timeline_year': 'السنة الهجرية'}
             )
             fig_trend.update_traces(line_color='#636EFA', line_width=3, name='')
-            # Add "هـ" suffix to x-axis tick labels for Hijri years
-            fig_trend.update_xaxes(ticksuffix="هـ")
+            # Add "هـ" suffix with space for better readability in Hijri year labels
+            fig_trend.update_xaxes(ticksuffix=" هـ")
             st.plotly_chart(format_plot(fig_trend), use_container_width=True)
     
     with tab2:
