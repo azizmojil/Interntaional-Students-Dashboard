@@ -8,6 +8,7 @@ from utils import (
     map_continent,
     categorize_status,
     parse_hijri_year,
+    format_hijri_date,
     map_gender,
     format_plot,
     ARABIC_TO_ENGLISH
@@ -89,6 +90,35 @@ st.markdown("""
         direction: rtl !important;
         text-align: right !important;
         width: 100%;
+    }
+
+    /* Fix sidebar collapse button position for RTL - move to right side */
+    [data-testid="collapsedControl"] {
+        left: auto !important;
+        right: 0.5rem !important;
+    }
+    
+    /* Fix Plotly hover tooltip positioning for RTL */
+    .js-plotly-plot .hoverlayer .hovertext {
+        direction: rtl !important;
+        text-align: right !important;
+    }
+    
+    /* Ensure hover box contains text properly */
+    .js-plotly-plot .hoverlayer .hovertext rect {
+        rx: 4;
+        ry: 4;
+    }
+    
+    /* Fix hover text alignment inside the box */
+    .js-plotly-plot .hoverlayer .hovertext text {
+        text-anchor: end !important;
+    }
+    
+    /* Hide undefined text in Plotly legend/annotation areas */
+    .js-plotly-plot .infolayer .legend .legendtext,
+    .js-plotly-plot .infolayer .gtitle {
+        visibility: hidden !important;
     }
 
     .block-container {
@@ -227,6 +257,9 @@ def load_data():
         processed["last_term_year"] = processed["last_term"].apply(parse_hijri_year)
         processed["timeline_year"] = processed["admit_year"].fillna(processed["last_term_year"])
         processed["continent"] = processed["country"].apply(map_continent)
+        # Add formatted Hijri date columns
+        processed["admit_date_hijri"] = processed["term_admit"].apply(format_hijri_date)
+        processed["last_term_hijri"] = processed["last_term"].apply(format_hijri_date)
         return processed
     except FileNotFoundError:
         st.error("❌ ملف البيانات غير موجود! يرجى التأكد من وجود 'data/data.xlsx'.")
@@ -310,7 +343,6 @@ def main():
     selected_gender = st.sidebar.selectbox("اختر الجنس", gender_options)
     
     # GPA range filter
-    st.sidebar.markdown("**نطاق المعدل التراكمي**")
     st.sidebar.markdown("**نطاق المعدل التراكمي**")
     gpa_range = st.sidebar.slider(
         "اختر نطاق المعدل التراكمي",
@@ -402,7 +434,7 @@ def main():
                 y='count',
                 labels={'count': 'عدد الطلاب', 'college': 'الكلية'}
             )
-            fig_college_overview.update_traces(marker_color='#0d6efd')
+            fig_college_overview.update_traces(marker_color='#0d6efd', name='')
             fig_college_overview.update_layout(showlegend=False)
             st.plotly_chart(format_plot(fig_college_overview), use_container_width=True)
         
@@ -444,7 +476,7 @@ def main():
         
         with col4:
             # Enrollment Trend
-            st.subheader("اتجاه التسجيل")
+            st.subheader("اتجاه التسجيل (بالسنة الهجرية)")
             timeline_df = filtered_df.dropna(subset=['timeline_year']).copy()
             timeline_df['timeline_year'] = timeline_df['timeline_year'].astype(int)
             enrollment_by_date = timeline_df.groupby('timeline_year').size().reset_index(name='count')
@@ -453,9 +485,11 @@ def main():
                 x='timeline_year',
                 y='count',
                 markers=True,
-                labels={'count': 'عدد الطلاب', 'timeline_year': 'السنة'}
+                labels={'count': 'عدد الطلاب', 'timeline_year': 'السنة الهجرية'}
             )
-            fig_trend.update_traces(line_color='#636EFA', line_width=3)
+            fig_trend.update_traces(line_color='#636EFA', line_width=3, name='')
+            # Add "هـ" suffix to x-axis tick labels for Hijri years
+            fig_trend.update_xaxes(ticksuffix="هـ")
             st.plotly_chart(format_plot(fig_trend), use_container_width=True)
     
     with tab2:
@@ -512,7 +546,7 @@ def main():
             y='count',
             labels={'count': 'عدد الطلاب', 'college': 'الكلية'}
         )
-        fig_university.update_traces(marker_color='#0d6efd')
+        fig_university.update_traces(marker_color='#0d6efd', name='')
         fig_university.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(format_plot(fig_university), use_container_width=True)
     
@@ -530,6 +564,7 @@ def main():
                 color_discrete_sequence=['#00CC96'],
                 labels={'gpa': 'المعدل التراكمي', 'count': 'عدد الطلاب'}
             )
+            fig_gpa_hist.update_traces(name='')
             st.plotly_chart(format_plot(fig_gpa_hist), use_container_width=True)
         
         with col2:
@@ -542,7 +577,7 @@ def main():
                 y='gpa',
                 labels={'gpa': 'متوسط المعدل', 'program': 'البرنامج'}
             )
-            fig_gpa_program.update_traces(marker_color='#0d6efd')
+            fig_gpa_program.update_traces(marker_color='#0d6efd', name='')
             fig_gpa_program.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(format_plot(fig_gpa_program), use_container_width=True)
         
@@ -562,7 +597,7 @@ def main():
             )
             # Fix: 'fill_color' is not a valid property for update_traces in this context.
             # Use 'fillcolor' (no underscore) for area charts in Plotly.
-            fig_kde.update_traces(line_color='#0d6efd', fillcolor='rgba(13, 110, 253, 0.2)')
+            fig_kde.update_traces(line_color='#0d6efd', fillcolor='rgba(13, 110, 253, 0.2)', name='')
             st.plotly_chart(format_plot(fig_kde), use_container_width=True)
         
         # GPA by Country (Top 10)
@@ -574,7 +609,7 @@ def main():
             y='gpa',
             labels={'gpa': 'متوسط المعدل', 'country': 'الدولة'}
         )
-        fig_gpa_country.update_traces(marker_color='#0d6efd')
+        fig_gpa_country.update_traces(marker_color='#0d6efd', name='')
         st.plotly_chart(format_plot(fig_gpa_country), use_container_width=True)
     
     with tab4:
@@ -607,10 +642,10 @@ def main():
             "gpa": "المعدل التراكمي",
             "hours": "الساعات المكتسبة",
             "funding": "نوع المنحة",
-            "term_admit": "فصل القبول (هجري)",
-            "last_term": "آخر فصل (هجري)",
-            "admit_year": "سنة القبول (ميلادي تقديري)",
-            "last_term_year": "آخر فصل (ميلادي تقديري)",
+            "term_admit": "فصل القبول",
+            "admit_date_hijri": "تاريخ القبول (هجري)",
+            "last_term": "آخر فصل",
+            "last_term_hijri": "تاريخ آخر فصل (هجري)",
             "email": "البريد الإلكتروني",
             "mobile": "الجوال"
         }

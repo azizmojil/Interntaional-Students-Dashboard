@@ -417,7 +417,17 @@ def categorize_status(value: str) -> str:
     return "غير نشط"
 
 
-def parse_hijri_year(term_value) -> float | None:
+# Semester to Hijri month mapping for date formatting
+SEMESTER_MONTH_MAPPING = {
+    'الأول': 'بداية محرم',      # First semester
+    'الثاني': 'بداية جمادى الأولى',  # Second semester
+    'الثالث': 'بداية رمضان',     # Third semester (summer)
+    'التكميلي': 'نهاية شوال',    # Supplementary semester
+}
+
+
+def parse_hijri_year(term_value) -> int | None:
+    """Extract Hijri year from term value (returns Hijri year directly)."""
     if pd.isna(term_value):
         return None
     numbers = re.findall(r'\d{3,4}', str(term_value))
@@ -425,9 +435,45 @@ def parse_hijri_year(term_value) -> float | None:
         return None
     try:
         hijri_year = int(numbers[0])
-        return hijri_year + 579  # تقريب تحويل هجري إلى ميلادي
+        return hijri_year  # Return Hijri year directly without conversion
     except ValueError:
         return None
+
+
+def format_hijri_date(term_value) -> str | None:
+    """Format term value as a Hijri date description with approximate date.
+    
+    Maps semesters to approximate Hijri months:
+    - First semester (الأول): Beginning of Muharram (بداية محرم)
+    - Second semester (الثاني): Beginning of Jumada al-Awwal (بداية جمادى الأولى)
+    - Third semester (الثالث): Beginning of Ramadan (بداية رمضان)
+    - Supplementary (التكميلي): End of Shawwal (نهاية شوال)
+    """
+    if pd.isna(term_value):
+        return None
+    
+    term_str = str(term_value)
+    numbers = re.findall(r'\d{3,4}', term_str)
+    if not numbers:
+        return None
+    
+    hijri_year = numbers[0]
+    
+    # Check for supplementary first (it contains 'الأول' substring)
+    if 'التكميلي' in term_str:
+        month_desc = SEMESTER_MONTH_MAPPING['التكميلي']
+    # Then check for specific semester patterns
+    elif 'الثالث' in term_str:
+        month_desc = SEMESTER_MONTH_MAPPING['الثالث']
+    elif 'الثاني' in term_str:
+        month_desc = SEMESTER_MONTH_MAPPING['الثاني']
+    elif 'الأول' in term_str:
+        month_desc = SEMESTER_MONTH_MAPPING['الأول']
+    else:
+        # Default: just return the year
+        return f"{hijri_year}هـ"
+    
+    return f"{month_desc} {hijri_year}هـ"
 
 
 def map_gender(value: str) -> str:
@@ -436,12 +482,28 @@ def map_gender(value: str) -> str:
         return "غير محدد"
     return mapping.get(str(value).strip(), "غير محدد")
 
+# Constant for undefined trace name
+_UNDEFINED_TRACE_NAME = 'undefined'
+
 # Helper to format plots for RTL
 def format_plot(fig):
     fig.update_layout(
-        title=None,
+        title="",  # Set to empty string instead of None to avoid "undefined"
         showlegend=False,
         font=dict(family="Inter, sans-serif"),
-        margin=dict(t=20, l=50, r=50, b=20)
+        margin=dict(t=20, l=50, r=50, b=20),
+        # Fix hover label styling for RTL
+        hoverlabel=dict(
+            align="right",
+            namelength=0  # Hide trace name in hover
+        )
     )
+    # Clean trace names to remove undefined values
+    for trace in fig.data:
+        if hasattr(trace, 'name') and (trace.name is None or trace.name == _UNDEFINED_TRACE_NAME):
+            trace.name = ''
+        # Clean hovertemplate if it contains undefined
+        if hasattr(trace, 'hovertemplate') and trace.hovertemplate:
+            if _UNDEFINED_TRACE_NAME in str(trace.hovertemplate):
+                trace.hovertemplate = trace.hovertemplate.replace(_UNDEFINED_TRACE_NAME, '')
     return fig
