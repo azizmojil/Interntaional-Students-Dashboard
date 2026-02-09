@@ -30,10 +30,17 @@ st.markdown("""
 # Load data
 @st.cache_data
 def load_data():
-    df = pd.read_csv('data/students_data.csv')
-    df['enrollment_date'] = pd.to_datetime(df['enrollment_date'])
-    df['graduation_date'] = pd.to_datetime(df['graduation_date'])
-    return df
+    try:
+        df = pd.read_csv('data/students_data.csv')
+        df['enrollment_date'] = pd.to_datetime(df['enrollment_date'])
+        df['graduation_date'] = pd.to_datetime(df['graduation_date'])
+        return df
+    except FileNotFoundError:
+        st.error("❌ Data file not found! Please ensure 'data/students_data.csv' exists.")
+        st.stop()
+    except Exception as e:
+        st.error(f"❌ Error loading data: {str(e)}")
+        st.stop()
 
 # Main app
 def main():
