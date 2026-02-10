@@ -712,15 +712,34 @@ def main():
     with tab5:
         st.subheader("خطة القبول لتحقيق توازن تمثيل الجنسيات")
 
-        colA, colB, colC, colD = st.columns(4)
-        seats = colA.number_input("عدد المقاعد المتاحة", min_value=0, value=300, step=10)
-        min_per_country = colB.number_input("حد أدنى للمقبولين لكل دولة", min_value=0, value=0, step=1)
-        max_share = colC.slider("حد أقصى كنسبة من المقاعد الجديدة لكل دولة", min_value=0.05, max_value=1.0, value=0.25,
-                                step=0.05)
-        max_post_share = colD.slider("حد أقصى للتمثيل بعد القبول (نسبة من الإجمالي)", min_value=0.02, max_value=1.0,
-                                     value=0.10, step=0.01)
+        # New input structure for acceptance planning
+        st.markdown("#### إعدادات المقاعد")
+        colA, colB = st.columns(2)
+        total_seats = colA.number_input("إجمالي المقاعد المتاحة", min_value=0, value=1000, step=10)
+        intl_pct = colB.slider("نسبة المقاعد للطلاب الدوليين (%)", min_value=0.0, max_value=100.0, value=30.0, step=1.0)
+
+        st.markdown("#### توزيع المنح للطلاب الدوليين")
+        colC, colD = st.columns(2)
+        internal_grant_pct = colC.slider("نسبة المقاعد للمنح الداخلية (%)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
+        external_grant_pct = 100.0 - internal_grant_pct
+        colD.metric("نسبة المقاعد للمنح الخارجية (%)", f"{external_grant_pct:.1f}%")
+
+        # Calculate actual seat numbers using round for better accuracy
+        intl_seats = round(total_seats * intl_pct / 100.0)
+        internal_grant_seats = round(intl_seats * internal_grant_pct / 100.0)
+        external_grant_seats = intl_seats - internal_grant_seats
+
+        # Display calculated seats
+        st.markdown("#### ملخص توزيع المقاعد")
+        sc1, sc2, sc3 = st.columns(3)
+        sc1.metric("مقاعد الطلاب الدوليين", f"{intl_seats:,}")
+        sc2.metric("مقاعد المنح الداخلية", f"{internal_grant_seats:,}")
+        sc3.metric("مقاعد المنح الخارجية", f"{external_grant_seats:,}")
+
+        st.markdown("---")
 
         st.markdown("### 1) ارفع ملف المتقدمين (CSV)")
+        st.info("الملف يجب أن يحتوي الأعمدة: country, applicants, grant_type (internal/external)")
         uploaded = st.file_uploader("Upload applicants.csv", type=["csv"], key="applicants_upload")
 
         if uploaded is None:
@@ -728,110 +747,174 @@ def main():
         else:
             applicants_df = pd.read_csv(uploaded)
 
-            if not {"country", "applicants"}.issubset(applicants_df.columns):
-                st.error("الملف يجب أن يحتوي الأعمدة: country, applicants")
+            required_cols = {"country", "applicants", "grant_type"}
+            if not required_cols.issubset(applicants_df.columns):
+                st.error("الملف يجب أن يحتوي الأعمدة: country, applicants, grant_type")
             else:
-                # Build intake df using your existing current dataset
-                intake_df = build_intake_df_from_upload(
-                    applicants_df=applicants_df,
-                    current_students_df=df,
-                    exclude_ksa=True
-                )
-
-                if intake_df.empty:
-                    st.warning("لا توجد صفوف صالحة بعد المعالجة (تحقق من أسماء الدول أو أن applicants > 0).")
+                # Create a copy to avoid modifying the original dataframe
+                applicants_df = applicants_df.copy()
+                # Validate grant_type values
+                valid_grant_types = {"internal", "external"}
+                applicants_df["grant_type"] = applicants_df["grant_type"].astype(str).str.strip().str.lower()
+                invalid_types = set(applicants_df["grant_type"].unique()) - valid_grant_types
+                if invalid_types:
+                    st.error(f"قيم grant_type غير صالحة: {invalid_types}. يجب أن تكون 'internal' أو 'external'")
                 else:
-                    plan = allocate_seats_post_intake_representation(
-                        df=intake_df,
-                        seats=int(seats),
-                        min_per_country=int(min_per_country),
-                        max_seat_share=float(max_share),
-                        max_post_share=float(max_post_share),
+                    # Split applicants by grant type
+                    internal_applicants = applicants_df[applicants_df["grant_type"] == "internal"].copy()
+                    external_applicants = applicants_df[applicants_df["grant_type"] == "external"].copy()
+
+                    # Build intake dataframes for each grant type
+                    internal_intake_df = build_intake_df_from_upload(
+                        applicants_df=internal_applicants,
+                        current_students_df=df,
+                        exclude_ksa=True
+                    )
+                    external_intake_df = build_intake_df_from_upload(
+                        applicants_df=external_applicants,
+                        current_students_df=df,
+                        exclude_ksa=True
                     )
 
-                    # ---- KPIs
-                    total_apps = int(plan["applicants"].sum())
-                    total_admits = int(plan["target_admits"].sum())
-                    total_current = int(plan["current_students"].sum())
-                    post_total_all = total_current + int(seats)
-
-                    # Intake acceptance rate (diagnostic only)
-                    intake_rate = (total_admits / total_apps) if total_apps else 0.0
-                    hhi = herfindahl_share(plan["target_admits"])
-
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("إجمالي المتقدمين", f"{total_apps:,}")
-                    m2.metric("الطلاب الحاليين (للبلدان الموجودة بالملف)", f"{total_current:,}")
-                    m3.metric("المقبولين الجدد (المخطط)", f"{total_admits:,}")
-                    m4.metric("معدل القبول (للمتقدمين فقط)", f"{intake_rate:.2%}")
-
-                    # ---- Map
-                    st.markdown("### 2) الخريطة العالمية للمقاعد المقترحة")
-                    plan_map = plan.copy()
-
-                    # Map Arabic -> English names for Plotly if available
-                    if "ARABIC_TO_ENGLISH" in globals():
-                        plan_map["country_en"] = plan_map["country"].map(ARABIC_TO_ENGLISH).fillna(plan_map["country"])
+                    if internal_intake_df.empty and external_intake_df.empty:
+                        st.warning("لا توجد صفوف صالحة بعد المعالجة (تحقق من أسماء الدول أو أن applicants > 0).")
                     else:
-                        plan_map["country_en"] = plan_map["country"]
+                        # Allocate seats for internal grants
+                        internal_plan = pd.DataFrame()
+                        if not internal_intake_df.empty and internal_grant_seats > 0:
+                            internal_plan = allocate_seats_post_intake_representation(
+                                df=internal_intake_df,
+                                seats=internal_grant_seats,
+                                min_per_country=0,
+                                max_seat_share=1.0,
+                                max_post_share=1.0,
+                            )
+                            internal_plan["grant_type"] = "internal"
 
-                    fig_map = px.choropleth(
-                        plan_map,
-                        locations="country_en",
-                        locationmode="country names",
-                        color="target_admits",
-                        hover_name="country",
-                        hover_data={
-                            "applicants": True,
-                            "current_students": True,
-                            "target_admits": True,
-                            "post_total": True,
-                            "post_share": ":.2%",
-                            "target_weight": ":.2%"
-                        },
-                        labels={"target_admits": "المقاعد المقترحة"}
-                    )
-                    fig_map.update_layout(
-                        geo=dict(showframe=False, showcoastlines=False, projection_type="equirectangular"))
-                    st.plotly_chart(fig_map, use_container_width=True)
+                        # Allocate seats for external grants
+                        external_plan = pd.DataFrame()
+                        if not external_intake_df.empty and external_grant_seats > 0:
+                            external_plan = allocate_seats_post_intake_representation(
+                                df=external_intake_df,
+                                seats=external_grant_seats,
+                                min_per_country=0,
+                                max_seat_share=1.0,
+                                max_post_share=1.0,
+                            )
+                            external_plan["grant_type"] = "external"
 
-                    # ---- Top bar
-                    st.markdown("### 3) أعلى الدول من حيث المقاعد المقترحة")
-                    topN = plan.sort_values("target_admits", ascending=False).head(20).copy()
-                    fig_bar = px.bar(
-                        topN,
-                        x="country",
-                        y="target_admits",
-                        hover_data={
-                            "applicants": True,
-                            "current_students": True,
-                            "post_share": ":.2%"
-                        },
-                        labels={"country": "الدولة", "target_admits": "المقاعد المقترحة"}
-                    )
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                        # Combine plans
+                        plans_to_combine = [p for p in [internal_plan, external_plan] if not p.empty]
+                        if plans_to_combine:
+                            plan = pd.concat(plans_to_combine, ignore_index=True)
+                        else:
+                            plan = pd.DataFrame()
 
-                    # ---- Table + download
-                    st.markdown("### 4) جدول الخطة")
-                    show = plan.rename(columns={
-                        "country": "الدولة",
-                        "continent": "القارة",
-                        "applicants": "عدد المتقدمين",
-                        "current_students": "الطلاب الحاليين",
-                        "target_admits": "المقاعد المقترحة",
-                        "post_total": "إجمالي بعد القبول",
-                        "post_share": "حصة بعد القبول",
-                        "target_weight": "وزن مستهدف"
-                    })
-                    st.dataframe(show, use_container_width=True, hide_index=True)
+                        if plan.empty:
+                            st.warning("لا يوجد خطة قبول متاحة.")
+                        else:
+                            # ---- KPIs
+                            total_apps = int(plan["applicants"].sum())
+                            total_admits = int(plan["target_admits"].sum())
+                            total_current = int(plan["current_students"].sum())
+                            post_total_all = total_current + intl_seats
 
-                    csv = show.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "📥 تنزيل خطة القبول (CSV)",
-                        data=csv,
-                        file_name="admissions_plan.csv",
-                        mime="text/csv",
-                    )
+                            # Per grant type stats
+                            internal_admits = int(plan[plan["grant_type"] == "internal"]["target_admits"].sum()) if "grant_type" in plan.columns else 0
+                            external_admits = int(plan[plan["grant_type"] == "external"]["target_admits"].sum()) if "grant_type" in plan.columns else 0
+
+                            # Intake acceptance rate (diagnostic only)
+                            intake_rate = (total_admits / total_apps) if total_apps else 0.0
+
+                            st.markdown("#### إحصائيات عامة")
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("إجمالي المتقدمين", f"{total_apps:,}")
+                            m2.metric("الطلاب الحاليين", f"{total_current:,}")
+                            m3.metric("المقبولين الجدد (المخطط)", f"{total_admits:,}")
+                            m4.metric("معدل القبول", f"{intake_rate:.2%}")
+
+                            st.markdown("#### توزيع المقبولين حسب نوع المنحة")
+                            g1, g2 = st.columns(2)
+                            g1.metric("مقبولين - منح داخلية", f"{internal_admits:,}")
+                            g2.metric("مقبولين - منح خارجية", f"{external_admits:,}")
+
+                            # ---- Map
+                            # Aggregate by country for the map (sum across grant types)
+                            # Use max for current_students as it should be the same for both grant types
+                            plan_agg = plan.groupby(["country", "continent"]).agg({
+                                "applicants": "sum",
+                                "current_students": "max",
+                                "target_admits": "sum",
+                                "target_weight": "sum"
+                            }).reset_index()
+                            # Recalculate post_total and post_share after aggregation
+                            plan_agg["post_total"] = plan_agg["current_students"] + plan_agg["target_admits"]
+                            total_post = plan_agg["post_total"].sum()
+                            plan_agg["post_share"] = plan_agg["post_total"] / total_post if total_post > 0 else 0
+
+                            st.markdown("### 2) الخريطة العالمية للمقاعد المقترحة")
+                            plan_map = plan_agg.copy()
+
+                            # Map Arabic -> English names for Plotly if available
+                            if "ARABIC_TO_ENGLISH" in globals():
+                                plan_map["country_en"] = plan_map["country"].map(ARABIC_TO_ENGLISH).fillna(plan_map["country"])
+                            else:
+                                plan_map["country_en"] = plan_map["country"]
+
+                            fig_map = px.choropleth(
+                                plan_map,
+                                locations="country_en",
+                                locationmode="country names",
+                                color="target_admits",
+                                hover_name="country",
+                                hover_data={
+                                    "applicants": True,
+                                    "current_students": True,
+                                    "target_admits": True
+                                },
+                                labels={"target_admits": "المقاعد المقترحة"}
+                            )
+                            fig_map.update_layout(
+                                geo=dict(showframe=False, showcoastlines=False, projection_type="equirectangular"))
+                            st.plotly_chart(fig_map, use_container_width=True)
+
+                            # ---- Top bar
+                            st.markdown("### 3) أعلى الدول من حيث المقاعد المقترحة")
+                            topN = plan_agg.sort_values("target_admits", ascending=False).head(20).copy()
+                            fig_bar = px.bar(
+                                topN,
+                                x="country",
+                                y="target_admits",
+                                hover_data={
+                                    "applicants": True,
+                                    "current_students": True
+                                },
+                                labels={"country": "الدولة", "target_admits": "المقاعد المقترحة"}
+                            )
+                            st.plotly_chart(fig_bar, use_container_width=True)
+
+                            # ---- Table + download
+                            st.markdown("### 4) جدول الخطة")
+                            show = plan.rename(columns={
+                                "country": "الدولة",
+                                "continent": "القارة",
+                                "applicants": "عدد المتقدمين",
+                                "current_students": "الطلاب الحاليين",
+                                "target_admits": "المقاعد المقترحة",
+                                "post_total": "إجمالي بعد القبول",
+                                "post_share": "حصة بعد القبول",
+                                "target_weight": "وزن مستهدف",
+                                "grant_type": "نوع المنحة"
+                            })
+                            st.dataframe(show, use_container_width=True, hide_index=True)
+
+                            csv = show.to_csv(index=False).encode("utf-8")
+                            st.download_button(
+                                "📥 تنزيل خطة القبول (CSV)",
+                                data=csv,
+                                file_name="admissions_plan.csv",
+                                mime="text/csv",
+                            )
 
     with tab1:
         # Overview tab

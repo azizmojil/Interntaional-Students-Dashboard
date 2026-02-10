@@ -1,45 +1,45 @@
-country,applicants
-United Arab Emirates,430
-India,3100
-Pakistan,900
-China,2200
-Japan,650
-Philippines,520
-Indonesia,780
-South Korea,410
-Turkey,560
-Germany,950
-France,880
-United Kingdom,1020
-Italy,640
-Spain,590
-Netherlands,360
-Sweden,240
-Poland,410
-Greece,180
-Portugal,170
-United States,1800
-Canada,520
-Mexico,650
-Dominican Republic,140
-Costa Rica,120
-Brazil,900
-Argentina,420
-Chile,260
-Colombia,510
-Peru,240
-Nigeria,880
-Egypt,700
-South Africa,420
-Kenya,260
-Morocco,310
-Ethiopia,390
-Ghana,190
-Tunisia,170
-Algeria,240
-Senegal,120
-Australia,420
-New Zealand,140
-Fiji,60
-Papua New Guinea,55
-Samoa,35
+country,applicants,grant_type
+United Arab Emirates,430,internal
+India,3100,external
+Pakistan,900,internal
+China,2200,external
+Japan,650,internal
+Philippines,520,external
+Indonesia,780,internal
+South Korea,410,external
+Turkey,560,internal
+Germany,950,external
+France,880,internal
+United Kingdom,1020,external
+Italy,640,internal
+Spain,590,external
+Netherlands,360,internal
+Sweden,240,external
+Poland,410,internal
+Greece,180,external
+Portugal,170,internal
+United States,1800,external
+Canada,520,internal
+Mexico,650,external
+Dominican Republic,140,internal
+Costa Rica,120,external
+Brazil,900,internal
+Argentina,420,external
+Chile,260,internal
+Colombia,510,external
+Peru,240,internal
+Nigeria,880,external
+Egypt,700,internal
+South Africa,420,external
+Kenya,260,internal
+Morocco,310,external
+Ethiopia,390,internal
+Ghana,190,external
+Tunisia,170,internal
+Algeria,240,external
+Senegal,120,internal
+Australia,420,external
+New Zealand,140,internal
+Fiji,60,external
+Papua New Guinea,55,internal
+Samoa,35,external
