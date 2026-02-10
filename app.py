@@ -724,9 +724,9 @@ def main():
         external_grant_pct = 100.0 - internal_grant_pct
         colD.metric("نسبة المقاعد للمنح الخارجية (%)", f"{external_grant_pct:.1f}%")
 
-        # Calculate actual seat numbers
-        intl_seats = int(total_seats * intl_pct / 100.0)
-        internal_grant_seats = int(intl_seats * internal_grant_pct / 100.0)
+        # Calculate actual seat numbers using round for better accuracy
+        intl_seats = round(total_seats * intl_pct / 100.0)
+        internal_grant_seats = round(intl_seats * internal_grant_pct / 100.0)
         external_grant_seats = intl_seats - internal_grant_seats
 
         # Display calculated seats
@@ -751,6 +751,8 @@ def main():
             if not required_cols.issubset(applicants_df.columns):
                 st.error("الملف يجب أن يحتوي الأعمدة: country, applicants, grant_type")
             else:
+                # Create a copy to avoid modifying the original dataframe
+                applicants_df = applicants_df.copy()
                 # Validate grant_type values
                 valid_grant_types = {"internal", "external"}
                 applicants_df["grant_type"] = applicants_df["grant_type"].astype(str).str.strip().str.lower()
@@ -838,14 +840,17 @@ def main():
 
                             # ---- Map
                             # Aggregate by country for the map (sum across grant types)
+                            # Use max for current_students as it should be the same for both grant types
                             plan_agg = plan.groupby(["country", "continent"]).agg({
                                 "applicants": "sum",
-                                "current_students": "first",
+                                "current_students": "max",
                                 "target_admits": "sum",
-                                "post_total": "first",
-                                "post_share": "first",
                                 "target_weight": "sum"
                             }).reset_index()
+                            # Recalculate post_total and post_share after aggregation
+                            plan_agg["post_total"] = plan_agg["current_students"] + plan_agg["target_admits"]
+                            total_post = plan_agg["post_total"].sum()
+                            plan_agg["post_share"] = plan_agg["post_total"] / total_post if total_post > 0 else 0
 
                             st.markdown("### 2) الخريطة العالمية للمقاعد المقترحة")
                             plan_map = plan_agg.copy()
