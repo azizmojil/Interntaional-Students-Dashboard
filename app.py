@@ -45,25 +45,37 @@ st.markdown("""
         background: #f5f7fb;
         color: #111827;
     }
-    
-    /* Improve input visibility - targeting Streamlit widgets specifically */
-    .stSelectbox div[data-baseweb="select"] > div,
-    .stSelectbox div[data-baseweb="select"] span {
-        color: #111827 !important;
-        -webkit-text-fill-color: #111827 !important;
-        caret-color: #111827 !important;
-    }
 
-    /* Force input text color and background */
+    /* Selectbox text visibility */
+/* Main area (light background): keep text dark */
+.stSelectbox div[data-baseweb="select"] > div,
+.stSelectbox div[data-baseweb="select"] span,
+.stSelectbox div[data-baseweb="select"] input {
+    color: #111827 !important;
+    -webkit-text-fill-color: #111827 !important;
+    caret-color: #111827 !important;
+}
+
+/* Sidebar selectboxes: white background + black text */
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div,
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] span,
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] input {
+    color: #000000 !important;
+    -webkit-text-fill-color: #e5e7eb !important;
+    caret-color: #000000 !important;
+}
+/* Force input text color and background - Aggressive override */
+    input,
     input[type="text"],
     .stTextInput input,
-    .stNumberInput input {
-        color: #111827 !important;
-        -webkit-text-fill-color: #111827 !important;
-        caret-color: #111827 !important;
+    .stNumberInput input,
+    div[data-baseweb="input"] input {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        caret-color: #000000 !important;
         background-color: #ffffff !important;
     }
-    
+
     /* Placeholder styling */
     .stTextInput input::placeholder,
     .stNumberInput input::placeholder {
@@ -71,29 +83,30 @@ st.markdown("""
         opacity: 1 !important;
         -webkit-text-fill-color: #6b7280 !important;
     }
-    
-    /* Dropdown menu items */
-    ul[data-baseweb="menu"] li {
-        color: #111827 !important;
-        direction: rtl;
-        text-align: right;
-    }
-    
-    /* Fix Plotly Overlaps: Force LTR for the chart container to prevent coordinate flipping bugs */
+
+    /* Dropdown menu items: black text */
+ul[data-baseweb="menu"] li {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    direction: rtl;
+    text-align: right;
+}
+
+/* Fix Plotly Overlaps: Force LTR for the chart container to prevent coordinate flipping bugs */
     .js-plotly-plot, .plot-container {
         direction: ltr !important;
     }
-    
+
     /* Ensure tooltips are readable */
     .js-plotly-plot .plotly .hovertext text {
         text-anchor: start !important;
     }
-    
+
     /* Fix Streamlit slider interaction issues in RTL */
     .stSlider {
         direction: ltr !important;
     }
-    
+
     /* Re-align slider label to right */
     .stSlider label {
         direction: rtl !important;
@@ -106,24 +119,24 @@ st.markdown("""
         left: auto !important;
         right: 0.5rem !important;
     }
-    
+
     /* Fix Plotly hover tooltip positioning for RTL */
     .js-plotly-plot .hoverlayer .hovertext {
         direction: rtl !important;
         text-align: right !important;
     }
-    
+
     /* Ensure hover box contains text properly */
     .js-plotly-plot .hoverlayer .hovertext rect {
         rx: 4;
         ry: 4;
     }
-    
+
     /* Fix hover text alignment inside the box */
     .js-plotly-plot .hoverlayer .hovertext text {
         text-anchor: end !important;
     }
-    
+
     /* Hide undefined text in Plotly legend/annotation areas */
     .js-plotly-plot .infolayer .legend .legendtext,
     .js-plotly-plot .infolayer .gtitle {
@@ -146,18 +159,18 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stSidebarNavLink"] {
         border-radius: 10px;
     }
-    
-    /* Sidebar inputs */
-    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
-        background-color: rgba(255, 255, 255, 0.1);
-        color: white !important;
-    }
-    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div {
-        color: white !important;
-        -webkit-text-fill-color: white !important;
-    }
 
-    /* Stat cards */
+    /* Sidebar inputs */
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
+    background-color: #ffffff !important;
+}
+
+/* Sidebar selectbox: ensure inner control is white so black text is readable */
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div {
+    background: #ffffff !important;
+}
+/* (Text color handled in the "Sidebar (dark background)" block above) */
+/* Stat cards */
     .stat-card {
         background: var(--surface);
         border: 1px solid var(--border);
@@ -235,27 +248,27 @@ st.markdown("""
         margin: 18px 0;
         border-bottom: 1px solid var(--border);
     }
-    
+
     /* Hide header anchor links */
     [data-testid="stHeaderActionElements"] {
         display: none !important;
     }
-    
+
     /* Hide all anchor tags inside headers */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
         display: none !important;
     }
-    
+
     /* Hide anchor links by href pattern (internal links) */
     a[href^="#"] {
         display: none !important;
     }
-    
+
     /* Hide specific anchor class if present */
     a.anchor-link {
         display: none !important;
     }
-    
+
     /* Hide anchor links (chain icon) next to headers */
     [data-testid="stMarkdownContainer"] h1 a,
     [data-testid="stMarkdownContainer"] h2 a,
@@ -265,8 +278,51 @@ st.markdown("""
     [data-testid="stMarkdownContainer"] h6 a {
         display: none !important;
     }
+    /* Sidebar input text should be light on dark sidebar */
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] textarea,
+[data-testid="stSidebar"] div[data-baseweb="input"] input,
+[data-testid="stSidebar"] div[data-baseweb="select"] input {
+  color: #e5e7eb !important;
+  -webkit-text-fill-color: #e5e7eb !important;
+  caret-color: #e5e7eb !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Sidebar placeholders */
+[data-testid="stSidebar"] input::placeholder,
+[data-testid="stSidebar"] textarea::placeholder {
+  color: rgba(229, 231, 235, 0.65) !important;
+  -webkit-text-fill-color: rgba(229, 231, 235, 0.65) !important;
+  opacity: 1 !important;
+}
+div[data-baseweb="popover"] input {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  background: #ffffff !important;
+}
+/* === FINAL OVERRIDES (must be last) === */
+/* Sidebar selectboxes: force true black */
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] * {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1 !important;
+}
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] > div {
+  background: #ffffff !important;
+}
+
+/* If dropdown/search renders in a popover outside sidebar DOM */
+div[data-baseweb="popover"] div[data-baseweb="select"] * ,
+div[data-baseweb="popover"] div[data-baseweb="select"] input {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1 !important;
+}
+
     </style>
     """, unsafe_allow_html=True)
+
 
 # Load data
 @st.cache_data
@@ -307,6 +363,7 @@ def load_data():
         st.error(f"❌ خطأ في تحميل البيانات: {str(e)}")
         st.stop()
 
+
 def gaussian_kde(data, bandwidth=None):
     """
     Compute Gaussian KDE manually to avoid scipy dependency.
@@ -315,38 +372,38 @@ def gaussian_kde(data, bandwidth=None):
     n = len(data)
     if n == 0:
         return np.array([]), np.array([])
-    
+
     std = np.std(data)
     if std == 0:
         # If all values are the same, return a spike
         return np.array([data[0]]), np.array([1.0])
-        
+
     if bandwidth is None:
         # Scott's Rule
-        bandwidth = 1.06 * std * (n ** (-1/5))
-        
+        bandwidth = 1.06 * std * (n ** (-1 / 5))
+
     if bandwidth == 0:
         bandwidth = 0.1
 
     min_x = data.min() - 3 * bandwidth
     max_x = data.max() + 3 * bandwidth
     x = np.linspace(min_x, max_x, 200)
-    
+
     # Vectorized calculation
     # x[:, None] is (200, 1), data[None, :] is (1, n)
     # diff is (200, n)
     diff = (x[:, None] - data[None, :]) / bandwidth
     # pdf is (200,)
-    pdf = (np.exp(-0.5 * diff**2) / np.sqrt(2 * np.pi)).sum(axis=1) / (n * bandwidth)
-    
+    pdf = (np.exp(-0.5 * diff ** 2) / np.sqrt(2 * np.pi)).sum(axis=1) / (n * bandwidth)
+
     return x, pdf
 
 
 def build_intake_df_from_upload(
-    applicants_df: pd.DataFrame,
-    current_students_df: pd.DataFrame,   # pass FULL df (unfiltered)
-    exclude_ksa: bool = True,
-    current_country_col: str = "country"
+        applicants_df: pd.DataFrame,
+        current_students_df: pd.DataFrame,  # pass FULL df (unfiltered)
+        exclude_ksa: bool = True,
+        current_country_col: str = "country"
 ):
     """
     applicants_df must have: country, applicants
@@ -393,11 +450,11 @@ def build_intake_df_from_upload(
 
 
 def allocate_seats_post_intake_representation(
-    df: pd.DataFrame,
-    seats: int,
-    min_per_country: int = 0,
-    max_seat_share: float = 1.0,
-    max_post_share: float = 1.0,
+        df: pd.DataFrame,
+        seats: int,
+        min_per_country: int = 0,
+        max_seat_share: float = 1.0,
+        max_post_share: float = 1.0,
 ):
     """
     Balance post-intake representation using applicants as target weights.
@@ -530,41 +587,41 @@ def main():
     # Title
     st.title("🎓 لوحة معلومات الطلاب الدوليين")
     st.markdown("### تحليلات ذكاء الأعمال لبيانات الطلاب الدوليين")
-    
+
     # Load data
     df = load_data()
-    
+
     # Removed Hero Header as requested
-    
+
     gpa_values = df['gpa'].dropna()
     gpa_min = float(gpa_values.min()) if not gpa_values.empty else 0.0
     gpa_max = float(gpa_values.max()) if not gpa_values.empty else 5.0
     if gpa_min == gpa_max:
         gpa_max = gpa_min + 1
-    
+
     # Sidebar filters
     st.sidebar.header("📊 الفلاتر")
-    
+
     # Country filter
     countries = ['الكل'] + sorted(df['country'].dropna().unique().tolist())
     selected_country = st.sidebar.selectbox("اختر الدولة", countries)
-    
+
     # College filter
     colleges = ['الكل'] + sorted(df['college'].dropna().unique().tolist())
     selected_college = st.sidebar.selectbox("اختر الكلية", colleges)
-    
+
     # Program filter
     programs = ['الكل'] + sorted(df['program'].dropna().unique().tolist())
     selected_program = st.sidebar.selectbox("اختر البرنامج", programs)
-    
+
     # Status filter
     status_options = ['الكل'] + sorted(df['status'].dropna().unique().tolist())
     selected_status = st.sidebar.selectbox("اختر الحالة", status_options)
-    
+
     # Gender filter
     gender_options = ['الكل'] + sorted(df['gender'].dropna().unique().tolist())
     selected_gender = st.sidebar.selectbox("اختر الجنس", gender_options)
-    
+
     # GPA range filter
     st.sidebar.markdown("**نطاق المعدل التراكمي**")
     gpa_range = st.sidebar.slider(
@@ -574,7 +631,7 @@ def main():
         value=(gpa_min, gpa_max),
         step=0.1
     )
-    
+
     # Apply filters
     filtered_df = df.copy()
     if selected_country != 'الكل':
@@ -589,7 +646,7 @@ def main():
         filtered_df = filtered_df[filtered_df['gender'] == selected_gender]
     gpa_for_filter = filtered_df['gpa'].fillna(gpa_min)
     filtered_df = filtered_df[(gpa_for_filter >= gpa_range[0]) & (gpa_for_filter <= gpa_range[1])]
-    
+
     # Display metrics as AdminKit-like stat cards
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     avg_gpa = filtered_df['gpa'].mean()
@@ -636,22 +693,15 @@ def main():
                 </div>
             </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    
+
     # Create tabs for different views
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         ["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات", "🎯 خطة القبول"])
 
     with tab5:
-        st.subheader("🎯 خطة القبول لتحقيق توازن التمثيل بعد القبول (Stock + Flow)")
-
-        st.markdown("""
-        **الفكرة:** نستخدم عدد المتقدمين كـ *وزن مستهدف* لتوزيع إجمالي الطلاب بعد القبول
-        (الطلاب الحاليين + المقبولين الجدد).  
-        ثم نحسب القبول المطلوب لكل دولة كـ **تعويض/تغذية (Top-up)** للوصول لهذا التمثيل،
-        مع قيود اختيارية لتجنب التركز.
-        """)
+        st.subheader("خطة القبول لتحقيق توازن التمثيل للجنس والجنسية")
 
         colA, colB, colC, colD = st.columns(4)
         seats = colA.number_input("عدد المقاعد المتاحة", min_value=0, value=300, step=10)
@@ -662,7 +712,6 @@ def main():
                                      value=0.10, step=0.01)
 
         st.markdown("### 1) ارفع ملف المتقدمين (CSV)")
-        st.caption("الأعمدة المطلوبة: country, applicants  (والدولة يمكن أن تكون عربي/إنجليزي حسب mapping لديك)")
         uploaded = st.file_uploader("Upload applicants.csv", type=["csv"], key="applicants_upload")
 
         if uploaded is None:
@@ -781,7 +830,7 @@ def main():
     with tab1:
         # Overview tab
         col1, col2 = st.columns(2)
-        
+
         with col1:
             # Students by College (was Program)
             st.subheader("عدد الطلاب حسب الكلية")
@@ -796,7 +845,7 @@ def main():
             fig_college_overview.update_traces(marker_color='#0d6efd', name='')
             fig_college_overview.update_layout(showlegend=False)
             st.plotly_chart(format_plot(fig_college_overview), use_container_width=True)
-        
+
         with col2:
             # Students by Status
             st.subheader("عدد الطلاب حسب الحالة الأكاديمية")
@@ -812,9 +861,9 @@ def main():
             # Update traces to show labels and hide hover info
             fig_status.update_traces(textinfo='label+percent+value', hoverinfo='skip')
             st.plotly_chart(format_plot(fig_status), use_container_width=True)
-        
+
         col3, col4 = st.columns(2)
-        
+
         with col3:
             # Gender Distribution
             st.subheader("التوزيع حسب الجنس")
@@ -832,7 +881,7 @@ def main():
             # Update traces to show labels and hide hover info
             fig_gender.update_traces(textinfo='label+percent+value', hoverinfo='skip')
             st.plotly_chart(format_plot(fig_gender), use_container_width=True)
-        
+
         with col4:
             # Enrollment Trend
             st.subheader("عدد الطلاب المسجلين سنوياً")
@@ -850,22 +899,22 @@ def main():
             # Add "هـ" suffix with space for better readability in Hijri year labels
             fig_trend.update_xaxes(ticksuffix=" هـ")
             st.plotly_chart(format_plot(fig_trend), use_container_width=True)
-    
+
     with tab2:
         # Geographic Analysis tab
         col1, col2 = st.columns([2, 1])
-        
+
         with col1:
             # World Map
             st.subheader("التوزيع بحسب الجنسية")
-            
+
             # Prepare data for map
             map_data = filtered_df['country'].value_counts().reset_index()
             map_data.columns = ['country_ar', 'count']
-            
+
             # Map Arabic names to English for Plotly
             map_data['country_en'] = map_data['country_ar'].map(ARABIC_TO_ENGLISH)
-            
+
             fig_map = px.choropleth(
                 map_data,
                 locations='country_en',
@@ -883,7 +932,7 @@ def main():
                 )
             )
             st.plotly_chart(format_plot(fig_map), use_container_width=True)
-        
+
         with col2:
             # Country statistics
             st.subheader("إحصائيات الدول")
@@ -894,11 +943,11 @@ def main():
             country_stats.columns = ['الدولة', 'الطلاب', 'متوسط المعدل']
             country_stats = country_stats.sort_values('الطلاب', ascending=False).head(10)
             st.dataframe(country_stats, hide_index=True, use_container_width=True)
-    
+
     with tab3:
         # Academic Performance tab
         col1, col2 = st.columns(2)
-        
+
         with col1:
             # GPA Distribution
             st.subheader("توزيع المعدل التراكمي")
@@ -911,7 +960,7 @@ def main():
             )
             fig_gpa_hist.update_traces(name='')
             st.plotly_chart(format_plot(fig_gpa_hist), use_container_width=True)
-        
+
         with col2:
             # Average GPA by Program
             st.subheader("متوسط المعدل حسب البرنامج")
@@ -925,7 +974,7 @@ def main():
             fig_gpa_program.update_traces(marker_color='#0d6efd', name='')
             fig_gpa_program.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(format_plot(fig_gpa_program), use_container_width=True)
-        
+
         # KDE Chart of GPA
         st.subheader("توزيع كثافة المعدل التراكمي (KDE)")
         gpa_data = filtered_df['gpa'].dropna()
@@ -934,9 +983,9 @@ def main():
         else:
             # Calculate KDE manually to avoid scipy dependency
             x_kde, y_kde = gaussian_kde(gpa_data)
-            
+
             fig_kde = px.area(
-                x=x_kde, 
+                x=x_kde,
                 y=y_kde,
                 labels={'x': 'المعدل التراكمي', 'y': 'الكثافة'}
             )
@@ -944,10 +993,11 @@ def main():
             # Use 'fillcolor' (no underscore) for area charts in Plotly.
             fig_kde.update_traces(line_color='#0d6efd', fillcolor='rgba(13, 110, 253, 0.2)', name='')
             st.plotly_chart(format_plot(fig_kde), use_container_width=True)
-        
+
         # GPA by Country (Top 10)
         st.subheader("متوسط المعدل حسب الدولة (أفضل 10)")
-        avg_gpa_country = filtered_df.groupby('country')['gpa'].mean().sort_values(ascending=False).head(10).reset_index()
+        avg_gpa_country = filtered_df.groupby('country')['gpa'].mean().sort_values(ascending=False).head(
+            10).reset_index()
         fig_gpa_country = px.bar(
             avg_gpa_country,
             x='country',
@@ -956,20 +1006,20 @@ def main():
         )
         fig_gpa_country.update_traces(marker_color='#0d6efd', name='')
         st.plotly_chart(format_plot(fig_gpa_country), use_container_width=True)
-    
+
     with tab4:
         # Data Table tab
         st.subheader("بيانات الطلاب")
-        
+
         # Search functionality
         search_term = st.text_input("🔍 البحث بالاسم أو الدولة أو الكلية أو التخصص", "")
-        
+
         if search_term:
             mask = (
-                filtered_df['name'].str.contains(search_term, case=False, na=False) |
-                filtered_df['country'].str.contains(search_term, case=False, na=False) |
-                filtered_df['college'].str.contains(search_term, case=False, na=False) |
-                filtered_df['program'].str.contains(search_term, case=False, na=False)
+                    filtered_df['name'].str.contains(search_term, case=False, na=False) |
+                    filtered_df['country'].str.contains(search_term, case=False, na=False) |
+                    filtered_df['college'].str.contains(search_term, case=False, na=False) |
+                    filtered_df['program'].str.contains(search_term, case=False, na=False)
             )
             display_df = filtered_df[mask]
         else:
@@ -995,14 +1045,14 @@ def main():
             "mobile": "الجوال"
         }
         display_df = display_df[list(columns_to_show.keys())].rename(columns=columns_to_show)
-        
+
         # Display dataframe
         st.dataframe(
             display_df,
             use_container_width=True,
             hide_index=True
         )
-        
+
         # Download button
         csv = display_df.to_csv(index=False).encode('utf-8')
         st.download_button(
@@ -1011,6 +1061,7 @@ def main():
             file_name=f"international_students_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
         )
+
 
 if __name__ == "__main__":
     main()
