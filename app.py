@@ -738,8 +738,7 @@ def main():
 
         st.markdown("---")
 
-        st.markdown("### 1) ارفع ملف المتقدمين (CSV)")
-        st.info("الملف يجب أن يحتوي الأعمدة: country, applicants, grant_type (internal/external)")
+        st.markdown("### 1) ارفع ملف المتقدمين")
         uploaded = st.file_uploader("Upload applicants.csv", type=["csv"], key="applicants_upload")
 
         if uploaded is None:
