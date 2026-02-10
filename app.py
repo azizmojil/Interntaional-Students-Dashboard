@@ -120,11 +120,20 @@ ul[data-baseweb="menu"] li {
         right: 0.5rem !important;
     }
 
-    /* Fix Plotly hover tooltip positioning for RTL */
-    .js-plotly-plot .hoverlayer .hovertext {
-        direction: rtl !important;
-        text-align: right !important;
-    }
+/* Plotly hover tooltip: force LTR */
+.js-plotly-plot .hoverlayer .hovertext {`
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: plaintext !important;
+}
+
+/* Hover tooltip text inside the box */
+.js-plotly-plot .hoverlayer .hovertext text {
+  direction: ltr !important;
+  unicode-bidi: plaintext !important;
+  text-anchor: start !important;  /* left-aligned inside tooltip */
+}
+
 
     /* Ensure hover box contains text properly */
     .js-plotly-plot .hoverlayer .hovertext rect {
@@ -756,9 +765,6 @@ def main():
                     m3.metric("المقبولين الجدد (المخطط)", f"{total_admits:,}")
                     m4.metric("معدل القبول (للمتقدمين فقط)", f"{intake_rate:.2%}")
 
-                    st.caption(
-                        f"مؤشر التركز (Herfindahl) للمقاعد الجديدة = {hhi:.4f} — كلما كان أقل كان التوزيع أكثر توازناً.")
-
                     # ---- Map
                     st.markdown("### 2) الخريطة العالمية للمقاعد المقترحة")
                     plan_map = plan.copy()
@@ -949,17 +955,17 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            # GPA Distribution
-            st.subheader("توزيع المعدل التراكمي")
-            fig_gpa_hist = px.histogram(
+            # GPA Distribution by College
+            st.subheader("توزيع المعدل التراكمي حسب الكلية")
+            fig_gpa_box = px.box(
                 filtered_df,
-                x='gpa',
-                nbins=20,
-                color_discrete_sequence=['#00CC96'],
-                labels={'gpa': 'المعدل التراكمي', 'count': 'عدد الطلاب'}
+                x='college',
+                y='gpa',
+                labels={'gpa': 'المعدل التراكمي', 'college': 'الكلية'}
             )
-            fig_gpa_hist.update_traces(name='')
-            st.plotly_chart(format_plot(fig_gpa_hist), use_container_width=True)
+            fig_gpa_box.update_traces(marker_color='#0d6efd')
+            fig_gpa_box.update_layout(showlegend=False)
+            st.plotly_chart(format_plot(fig_gpa_box), use_container_width=True)
 
         with col2:
             # Average GPA by Program
@@ -993,19 +999,6 @@ def main():
             # Use 'fillcolor' (no underscore) for area charts in Plotly.
             fig_kde.update_traces(line_color='#0d6efd', fillcolor='rgba(13, 110, 253, 0.2)', name='')
             st.plotly_chart(format_plot(fig_kde), use_container_width=True)
-
-        # GPA by Country (Top 10)
-        st.subheader("متوسط المعدل حسب الدولة (أفضل 10)")
-        avg_gpa_country = filtered_df.groupby('country')['gpa'].mean().sort_values(ascending=False).head(
-            10).reset_index()
-        fig_gpa_country = px.bar(
-            avg_gpa_country,
-            x='country',
-            y='gpa',
-            labels={'gpa': 'متوسط المعدل', 'country': 'الدولة'}
-        )
-        fig_gpa_country.update_traces(marker_color='#0d6efd', name='')
-        st.plotly_chart(format_plot(fig_gpa_country), use_container_width=True)
 
     with tab4:
         # Data Table tab
