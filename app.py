@@ -84,12 +84,28 @@ st.markdown("""
         -webkit-text-fill-color: #6b7280 !important;
     }
 
-    /* Dropdown menu items: black text */
-ul[data-baseweb="menu"] li {
+    /* Dropdown menu: full RTL for container, list, and items */
+ul[data-baseweb="menu"],
+[role="listbox"] {
+    direction: rtl !important;
+    text-align: right !important;
+}
+ul[data-baseweb="menu"] li,
+[role="option"] {
+    direction: rtl !important;
+    text-align: right !important;
     color: #000000 !important;
     -webkit-text-fill-color: #000000 !important;
-    direction: rtl;
-    text-align: right;
+}
+ul[data-baseweb="menu"] li span,
+ul[data-baseweb="menu"] li div,
+[role="option"] span,
+[role="option"] div {
+    direction: rtl !important;
+    text-align: right !important;
+}
+[data-baseweb="popover"] {
+    direction: rtl !important;
 }
 
 /* Fix Plotly Overlaps: Force LTR for the chart container to prevent coordinate flipping bugs */
@@ -120,31 +136,14 @@ ul[data-baseweb="menu"] li {
         right: 0.5rem !important;
     }
 
-/* Plotly hover tooltip: force LTR */
-.js-plotly-plot .hoverlayer .hovertext {`
-  direction: ltr !important;
-  text-align: left !important;
-  unicode-bidi: plaintext !important;
-}
-
-/* Hover tooltip text inside the box */
+/* Plotly hover tooltip – restored to previous working state */
 .js-plotly-plot .hoverlayer .hovertext text {
-  direction: ltr !important;
-  unicode-bidi: plaintext !important;
-  text-anchor: start !important;  /* left-aligned inside tooltip */
+    text-anchor: end !important;
 }
-
-
-    /* Ensure hover box contains text properly */
-    .js-plotly-plot .hoverlayer .hovertext rect {
-        rx: 4;
-        ry: 4;
-    }
-
-    /* Fix hover text alignment inside the box */
-    .js-plotly-plot .hoverlayer .hovertext text {
-        text-anchor: end !important;
-    }
+.js-plotly-plot .hoverlayer .hovertext rect {
+    rx: 4;
+    ry: 4;
+}
 
     /* Hide undefined text in Plotly legend/annotation areas */
     .js-plotly-plot .infolayer .legend .legendtext,
@@ -206,6 +205,12 @@ ul[data-baseweb="menu"] li {
         place-items: center;
         font-size: 18px;
         font-weight: 700;
+        flex-shrink: 0;
+    }
+    .stat-content {
+        flex: 1;
+        text-align: right;
+        direction: rtl;
     }
     .stat-content p {
         margin: 0;
@@ -329,6 +334,108 @@ div[data-baseweb="popover"] div[data-baseweb="select"] input {
   opacity: 1 !important;
 }
 
+    /* ── RTL fixes for acceptance plan tab components ── */
+
+    /* Selectbox: RTL dropdown control and menu */
+    .stSelectbox [data-baseweb="select"] > div {
+        direction: rtl !important;
+        text-align: right !important;
+    }
+    .stSelectbox [data-baseweb="select"] [data-baseweb="icon"] {
+        order: -1;
+    }
+
+    /* Multiselect: RTL tags and search input */
+    .stMultiSelect [data-baseweb="select"] > div {
+        direction: rtl !important;
+        text-align: right !important;
+    }
+    .stMultiSelect [data-baseweb="tag"] {
+        direction: rtl;
+    }
+
+    /* Number input: RTL layout for container and label.
+       BaseWeb sets direction:ltr on [data-baseweb="input"] internally,
+       so we override it here, then re-force the <input> to LTR so
+       digits still render in the correct order. */
+    div[data-testid="stNumberInput"],
+    div[data-testid="stNumberInput"] > div,
+    div[data-testid="stNumberInput"] [data-baseweb="form-control"],
+    div[data-testid="stNumberInput"] [data-baseweb="input"] {
+        direction: rtl !important;
+        text-align: right !important;
+    }
+    div[data-testid="stNumberInput"] label,
+    div[data-testid="stNumberInput"] p {
+        direction: rtl !important;
+        text-align: right !important;
+        width: 100% !important;
+        display: block !important;
+    }
+    /* Keep the actual number value LTR inside the box */
+    div[data-testid="stNumberInput"] input[type="number"] {
+        direction: ltr !important;
+        text-align: right !important;
+    }
+
+    /* File uploader: RTL label and drop zone */
+    [data-testid="stFileUploader"] {
+        direction: rtl;
+        text-align: right;
+    }
+    [data-testid="stFileUploader"] label,
+    [data-testid="stFileUploaderDropzone"] {
+        direction: rtl;
+        text-align: right;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Metric: RTL label and value */
+    [data-testid="stMetric"],
+    [data-testid="metric-container"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Alert boxes (info / warning / error) */
+    [data-testid="stAlert"],
+    [data-testid="stAlert"] * {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Caption */
+    [data-testid="stCaptionContainer"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        direction: rtl;
+    }
+
+    /* Markdown content */
+    [data-testid="stMarkdownContainer"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    /* Dataframe header and cells: RTL */
+    [data-testid="stDataFrame"] th,
+    [data-testid="stDataFrame"] td {
+        direction: rtl;
+        text-align: right !important;
+    }
+
+    /* Download button */
+    [data-testid="stDownloadButton"] > button {
+        direction: rtl;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -408,187 +515,116 @@ def gaussian_kde(data, bandwidth=None):
     return x, pdf
 
 
-def build_intake_df_from_upload(
+def suggest_applicants(
         applicants_df: pd.DataFrame,
-        current_students_df: pd.DataFrame,  # pass FULL df (unfiltered)
-        exclude_ksa: bool = True,
-        current_country_col: str = "country"
-):
+        current_students_df: pd.DataFrame,
+        intl_seats: int,
+        country_targets_en: dict,
+) -> pd.DataFrame:
     """
-    applicants_df must have: country, applicants
-    current_students_df must have: country (already mapped in your app's load_data)
-    Returns: country, continent, applicants, current_students
+    Suggest which applicants to accept.
+
+    Priority order:
+      1. Country targets  – fill specified minimums per nationality first
+      2. Geographical balance – underrepresented countries (low current share) get priority
+      3. Discipline balance  – accepted slots are distributed as evenly as possible across
+                               disciplines; 2nd/3rd choice used when 1st is overloaded.
+
+    applicants_df must have: applicant_id, nationality, disc1, disc2, disc3
+    current_students_df must have: country, program
+    country_targets_en: {english_country_name: min_count}
+
+    Returns applicants_df with added columns:
+      mapped_nationality, geo_score, accepted, acceptance_reason,
+      assigned_discipline, accepted_at_choice
     """
-    req = {"country", "applicants"}
-    if not req.issubset(applicants_df.columns):
-        raise ValueError("Uploaded file must contain columns: country, applicants")
+    data = applicants_df.copy().reset_index(drop=True)
 
-    up = applicants_df.copy()
-    up["country"] = up["country"].astype(str).str.strip()
-    up["applicants"] = pd.to_numeric(up["applicants"], errors="coerce").fillna(0).astype(int)
+    # Map uploaded nationalities to internal Arabic country names
+    data["mapped_nationality"] = data["nationality"].astype(str).str.strip().apply(map_country)
 
-    # Normalize uploaded country to match your dashboard naming
-    up["country"] = up["country"].apply(map_country)
+    # ── Geographical score (higher = more underrepresented in current enrollment)
+    current_country_counts = current_students_df["country"].value_counts()
+    total_current = max(len(current_students_df), 1)
 
-    # Compute continent internally (no continent column needed)
-    up["continent"] = up["country"].apply(map_continent)
+    def geo_score_fn(country):
+        share = current_country_counts.get(country, 0) / total_current
+        return round(1.0 - share, 4)
 
-    # Current students: DO NOT re-map; load_data already mapped it
-    cur = current_students_df.copy()
-    if current_country_col not in cur.columns:
-        raise ValueError(f"current_students_df must contain '{current_country_col}'")
+    data["geo_score"] = data["mapped_nationality"].apply(geo_score_fn)
+    data["accepted"] = False
+    data["acceptance_reason"] = ""
+    data["assigned_discipline"] = ""
+    data["accepted_at_choice"] = 0
 
-    cur[current_country_col] = cur[current_country_col].astype(str).str.strip()
-    current_counts = cur.groupby(current_country_col).size().rename("current_students").reset_index()
-    current_counts = current_counts.rename(columns={current_country_col: "country"})
+    accepted_set: set = set()
+    seats_used = 0
+    disc_counts: dict = {}  # tracks accepted-applicant discipline load (starts at 0, ignore existing)
 
-    out = up.merge(current_counts, on="country", how="left")
-    out["current_students"] = out["current_students"].fillna(0).astype(int)
+    def find_best_disc(row):
+        """Return (discipline, choice_rank) whose accepted count is lowest; prefer lower rank on tie."""
+        choices = []
+        for rank, col in enumerate(["disc1", "disc2", "disc3"], 1):
+            disc = row[col]
+            disc = str(disc).strip() if not pd.isna(disc) else ""
+            if not disc:
+                continue
+            choices.append((disc_counts.get(disc, 0), rank, disc))
+        if not choices:
+            return "", 0
+        choices.sort()  # ascending count, then ascending rank
+        return choices[0][2], choices[0][1]
 
-    # Remove KSA (international only)
-    if exclude_ksa:
-        ksa_variants = {
-            "المملكة العربية السعودية", "السعودية",
-            "Saudi Arabia", "KSA", "Kingdom of Saudi Arabia"
-        }
-        out = out[~out["country"].isin(ksa_variants)].copy()
+    def accept(idx, primary_reason):
+        nonlocal seats_used
+        row = data.loc[idx]
+        disc, rank = find_best_disc(row)
+        disc_counts[disc] = disc_counts.get(disc, 0) + 1
+        # If a non-first choice was needed to balance disciplines, note it
+        if rank > 1:
+            final_reason = "توازن تخصصات"
+        else:
+            final_reason = primary_reason
+        data.at[idx, "accepted"] = True
+        data.at[idx, "acceptance_reason"] = final_reason
+        data.at[idx, "assigned_discipline"] = disc
+        data.at[idx, "accepted_at_choice"] = rank
+        accepted_set.add(idx)
+        seats_used += 1
 
-    out = out[out["applicants"] > 0].copy()
+    # ── Phase 1: Country targets
+    mapped_targets = {map_country(en): cnt for en, cnt in country_targets_en.items()}
 
-    return out[["country", "continent", "applicants", "current_students"]]
-
-
-def allocate_seats_post_intake_representation(
-        df: pd.DataFrame,
-        seats: int,
-        min_per_country: int = 0,
-        max_seat_share: float = 1.0,
-        max_post_share: float = 1.0,
-):
-    """
-    Balance post-intake representation using applicants as target weights.
-
-    Required columns in df:
-      - country
-      - applicants
-      - current_students
-
-    Constraints:
-      - min_per_country: lower bound on admits per country (applied if feasible)
-      - max_seat_share: admits_i <= floor(seats * max_seat_share)
-      - max_post_share: (current_i + admits_i) <= floor(max_post_share * (total_current + seats))
-
-    Returns df with:
-      target_admits, post_total, post_share, target_weight
-    """
-
-    data = df.copy()
-    for col in ["applicants", "current_students"]:
-        data[col] = pd.to_numeric(data[col], errors="coerce").fillna(0).astype(int)
-
-    data = data[data["applicants"] > 0].copy()
-
-    if data.empty or seats <= 0:
-        data["target_admits"] = 0
-        data["post_total"] = data["current_students"]
-        data["post_share"] = 0.0
-        data["target_weight"] = 0.0
-        return data
-
-    seats = int(seats)
-    min_per_country = int(min_per_country)
-    max_seat_share = float(max_seat_share)
-    max_post_share = float(max_post_share)
-
-    total_apps = int(data["applicants"].sum())
-    total_current = int(data["current_students"].sum())
-    post_total_all = total_current + seats
-
-    # Target weights based on applicants
-    data["target_weight"] = data["applicants"] / total_apps
-
-    # Ideal post-intake totals and raw "top-up" need
-    ideal_post_total = data["target_weight"] * post_total_all
-    raw_need = (ideal_post_total - data["current_students"]).clip(lower=0)
-
-    # If nobody needs seats (current already exceeds targets everywhere), fall back to weights
-    if raw_need.sum() <= 0:
-        raw_need = data["target_weight"].copy()
-
-    # Scale needs to sum to seats
-    scaled = raw_need * (seats / raw_need.sum())
-    admits = np.floor(scaled).astype(int)
-
-    # Caps
-    cap_seat = int(np.floor(seats * max_seat_share))
-    cap_seat = max(0, cap_seat)
-
-    cap_post = np.floor(max_post_share * post_total_all - data["current_students"]).astype(int)
-    cap_post = cap_post.clip(lower=0)
-
-    cap_final = np.minimum(cap_seat, cap_post)
-
-    # Apply caps (cap beats min if infeasible)
-    admits = np.minimum(admits, cap_final)
-
-    # Try to apply minimums only where possible
-    if min_per_country > 0:
-        admits = np.minimum(np.maximum(admits, min_per_country), cap_final)
-
-    data["target_admits"] = admits.astype(int)
-
-    def remaining():
-        return int(seats - data["target_admits"].sum())
-
-    rem = remaining()
-
-    # Distribute remaining seats by largest fractional remainder of 'scaled', respecting caps
-    frac = (scaled - np.floor(scaled)).to_numpy()
-    guard = 0
-    while rem > 0 and guard < 10_000_000:
-        guard += 1
-        eligible = data["target_admits"].to_numpy() < cap_final.to_numpy()
-        if not eligible.any():
+    for country, target in mapped_targets.items():
+        if seats_used >= intl_seats:
             break
-        # pick eligible with highest frac; if ties/zero, use target_weight
-        score = np.where(eligible, frac, -np.inf)
-        idx = int(np.argmax(score))
-        if not np.isfinite(score[idx]):
-            # fallback: weight-based
-            score2 = np.where(eligible, data["target_weight"].to_numpy(), -np.inf)
-            idx = int(np.argmax(score2))
-            if not np.isfinite(score2[idx]):
+        quota = min(target, intl_seats - seats_used)
+        candidates = data[
+            (data["mapped_nationality"] == country) &
+            (~data.index.isin(accepted_set))
+        ]
+        count = 0
+        for idx in candidates.index:
+            if count >= quota:
                 break
-        data.iloc[idx, data.columns.get_loc("target_admits")] += 1
-        rem = remaining()
+            accept(idx, "هدف جنسية محددة")
+            count += 1
 
-    # If overshot (can happen when mins bind), remove from lowest priority above min
-    guard = 0
-    while rem < 0 and guard < 10_000_000:
-        guard += 1
-        can_remove = data["target_admits"] > max(0, min_per_country)
-        if not can_remove.any():
-            break
-        # remove from those with smallest fractional remainder (or smallest weight)
-        score = np.where(can_remove.to_numpy(), frac, np.inf)
-        idx = int(np.argmin(score))
-        data.iloc[idx, data.columns.get_loc("target_admits")] -= 1
-        rem = remaining()
+    # ── Phase 2: Geographical balance + discipline balance
+    # Process in geo-score order; discipline is assigned dynamically per accepted applicant
+    remaining_seats = intl_seats - seats_used
+    if remaining_seats > 0:
+        remaining = data[~data.index.isin(accepted_set)].sort_values(
+            "geo_score", ascending=False
+        )
+        count = 0
+        for idx in remaining.index:
+            if count >= remaining_seats:
+                break
+            accept(idx, "توازن جغرافي")
+            count += 1
 
-    # Post-intake diagnostics
-    data["post_total"] = data["current_students"] + data["target_admits"]
-    data["post_share"] = data["post_total"] / float(post_total_all)
-
-    return data.sort_values("target_admits", ascending=False).reset_index(drop=True)
-
-
-def herfindahl_share(counts: pd.Series) -> float:
-    """Concentration index: sum_i (share_i^2). Lower = more balanced."""
-    total = counts.sum()
-    if total <= 0:
-        return 0.0
-    s = (counts / total).astype(float)
-    return float((s * s).sum())
+    return data
 
 
 # Main app
@@ -710,210 +746,247 @@ def main():
         ["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات", "🎯 خطة القبول"])
 
     with tab5:
-        st.subheader("خطة القبول لتحقيق توازن تمثيل الجنسيات")
+        st.subheader("خطة القبول")
 
-        # New input structure for acceptance planning
-        st.markdown("#### إعدادات المقاعد")
-        colA, colB = st.columns(2)
-        total_seats = colA.number_input("إجمالي المقاعد المتاحة", min_value=0, value=1000, step=10)
-        intl_pct = colB.slider("نسبة المقاعد للطلاب الدوليين (%)", min_value=0.0, max_value=100.0, value=30.0, step=1.0)
+        # ── Step 1: local students ──────────────────────────────────────────
+        st.markdown("### 1) عدد الطلاب المحليين المقبولين")
+        local_students = st.number_input(
+            "أدخل عدد الطلاب المحليين المقبولين هذا العام",
+            min_value=0, value=2000, step=50, key="local_students_input"
+        )
+        intl_seats = round(local_students * 0.05)
 
-        st.markdown("#### توزيع المنح للطلاب الدوليين")
-        colC, colD = st.columns(2)
-        internal_grant_pct = colC.slider("نسبة المقاعد للمنح الداخلية (%)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
-        external_grant_pct = 100.0 - internal_grant_pct
-        colD.metric("نسبة المقاعد للمنح الخارجية (%)", f"{external_grant_pct:.1f}%")
-
-        # Calculate actual seat numbers using round for better accuracy
-        intl_seats = round(total_seats * intl_pct / 100.0)
-        internal_grant_seats = round(intl_seats * internal_grant_pct / 100.0)
-        external_grant_seats = intl_seats - internal_grant_seats
-
-        # Display calculated seats
-        st.markdown("#### ملخص توزيع المقاعد")
-        sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("مقاعد الطلاب الدوليين", f"{intl_seats:,}")
-        sc2.metric("مقاعد المنح الداخلية", f"{internal_grant_seats:,}")
-        sc3.metric("مقاعد المنح الخارجية", f"{external_grant_seats:,}")
+        c1, c2 = st.columns(2)
+        c1.metric("الطلاب المحليون المقبولون", f"{local_students:,}")
+        c2.metric("مقاعد الطلاب الدوليين (5%)", f"{intl_seats:,}")
 
         st.markdown("---")
 
-        st.markdown("### 1) ارفع ملف المتقدمين")
-        uploaded = st.file_uploader("Upload applicants.csv", type=["csv"], key="applicants_upload")
+        # ── Step 2: optional nationality targets ───────────────────────────
+        st.markdown("### 2) أهداف الجنسيات (اختياري)")
+        st.caption("حدد حداً أدنى من المقبولين لجنسيات بعينها.")
+
+        all_countries_ar = sorted(
+            {k for k in ARABIC_TO_ENGLISH if k and k != "غير محدد"}
+        )
+
+        # Dynamic add-row nationality targets using session state
+        if "nat_targets" not in st.session_state:
+            st.session_state.nat_targets = []
+
+        to_delete = None
+        for i, entry in enumerate(st.session_state.nat_targets):
+            r1, r2, r3 = st.columns([4, 2, 1])
+            chosen = r1.selectbox(
+                f"الجنسية {i + 1}",
+                options=[""] + all_countries_ar,
+                index=([""] + all_countries_ar).index(entry["country"])
+                if entry["country"] in all_countries_ar else 0,
+                key=f"nat_country_{i}",
+            )
+            tgt_val = r2.number_input(
+                "العدد المستهدف",
+                min_value=0,
+                value=entry["target"],
+                step=10,
+                key=f"nat_target_{i}",
+            )
+            if r3.button("حذف", key=f"nat_del_{i}"):
+                to_delete = i
+            st.session_state.nat_targets[i] = {"country": chosen, "target": tgt_val}
+
+        if to_delete is not None:
+            st.session_state.nat_targets.pop(to_delete)
+            st.rerun()
+
+        if st.button("+ أضف جنسية"):
+            st.session_state.nat_targets.append({"country": "", "target": 50})
+            st.rerun()
+
+        country_targets_en: dict = {
+            e["country"]: e["target"]
+            for e in st.session_state.nat_targets
+            if e["country"] and e["target"] > 0
+        }
+
+        if country_targets_en:
+            total_targets = sum(country_targets_en.values())
+            if total_targets > intl_seats > 0:
+                st.warning(
+                    f"مجموع الأهداف ({total_targets:,}) يتجاوز المقاعد المتاحة ({intl_seats:,}). "
+                    "سيتم تطبيق الأهداف بالترتيب حتى اكتمال المقاعد."
+                )
+
+        st.markdown("---")
+
+        # ── Step 3: upload applicants ──────────────────────────────────────
+        st.markdown("### 3) رفع ملف المتقدمين")
+        st.markdown(
+            "**الأعمدة المطلوبة:** `ID` · `Nationality` · "
+            "`1st Discipline` · `2nd Discipline` · `3rd Discipline`"
+        )
+
+        uploaded = st.file_uploader(
+            "ارفع ملف المتقدمين (CSV)", type=["csv"], key="applicants_upload"
+        )
 
         if uploaded is None:
-            st.info("ارفع ملف المتقدمين لإنتاج الخطة والخرائط.")
+            st.info("ارفع ملف المتقدمين للحصول على اقتراحات القبول.")
         else:
-            applicants_df = pd.read_csv(uploaded)
+            raw_df = pd.read_csv(uploaded)
+            raw_df.columns = [c.strip() for c in raw_df.columns]
+            lower_cols = {c.lower(): c for c in raw_df.columns}
 
-            required_cols = {"country", "applicants", "grant_type"}
-            if not required_cols.issubset(applicants_df.columns):
-                st.error("الملف يجب أن يحتوي الأعمدة: country, applicants, grant_type")
+            def find_col(patterns):
+                for p in patterns:
+                    if p in lower_cols:
+                        return lower_cols[p]
+                return None
+
+            id_col  = find_col(["id"])
+            nat_col = find_col(["nationality", "national", "nation"])
+            d1_col  = find_col(["1st discipline", "1st desired discipline",
+                                 "disc1", "discipline1", "discipline_1", "first discipline"])
+            d2_col  = find_col(["2nd discipline", "2nd desired discipline",
+                                 "disc2", "discipline2", "discipline_2", "second discipline"])
+            d3_col  = find_col(["3rd discipline", "3rd desired discipline",
+                                 "disc3", "discipline3", "discipline_3", "third discipline"])
+
+            missing_cols = []
+            if not id_col:  missing_cols.append("ID")
+            if not nat_col: missing_cols.append("Nationality")
+            if not d1_col:  missing_cols.append("1st Discipline")
+            if not d2_col:  missing_cols.append("2nd Discipline")
+            if not d3_col:  missing_cols.append("3rd Discipline")
+
+            if missing_cols:
+                st.error(f"الملف يفتقد الأعمدة التالية: {', '.join(missing_cols)}")
+            elif intl_seats == 0:
+                st.warning("عدد المقاعد الدولية صفر. يرجى إدخال عدد الطلاب المحليين.")
             else:
-                # Create a copy to avoid modifying the original dataframe
-                applicants_df = applicants_df.copy()
-                # Validate grant_type values
-                valid_grant_types = {"internal", "external"}
-                applicants_df["grant_type"] = applicants_df["grant_type"].astype(str).str.strip().str.lower()
-                invalid_types = set(applicants_df["grant_type"].unique()) - valid_grant_types
-                if invalid_types:
-                    st.error(f"قيم grant_type غير صالحة: {invalid_types}. يجب أن تكون 'internal' أو 'external'")
-                else:
-                    # Split applicants by grant type
-                    internal_applicants = applicants_df[applicants_df["grant_type"] == "internal"].copy()
-                    external_applicants = applicants_df[applicants_df["grant_type"] == "external"].copy()
+                adf = raw_df.rename(columns={
+                    id_col:  "applicant_id",
+                    nat_col: "nationality",
+                    d1_col:  "disc1",
+                    d2_col:  "disc2",
+                    d3_col:  "disc3",
+                })[["applicant_id", "nationality", "disc1", "disc2", "disc3"]].copy()
 
-                    # Build intake dataframes for each grant type
-                    internal_intake_df = build_intake_df_from_upload(
-                        applicants_df=internal_applicants,
-                        current_students_df=df,
-                        exclude_ksa=True
-                    )
-                    external_intake_df = build_intake_df_from_upload(
-                        applicants_df=external_applicants,
-                        current_students_df=df,
-                        exclude_ksa=True
-                    )
+                results_df = suggest_applicants(
+                    applicants_df=adf,
+                    current_students_df=df,
+                    intl_seats=intl_seats,
+                    country_targets_en=country_targets_en,
+                )
 
-                    if internal_intake_df.empty and external_intake_df.empty:
-                        st.warning("لا توجد صفوف صالحة بعد المعالجة (تحقق من أسماء الدول أو أن applicants > 0).")
-                    else:
-                        # Allocate seats for internal grants
-                        internal_plan = pd.DataFrame()
-                        if not internal_intake_df.empty and internal_grant_seats > 0:
-                            internal_plan = allocate_seats_post_intake_representation(
-                                df=internal_intake_df,
-                                seats=internal_grant_seats,
-                                min_per_country=0,
-                                max_seat_share=1.0,
-                                max_post_share=1.0,
-                            )
-                            internal_plan["grant_type"] = "internal"
+                accepted_df = results_df[results_df["accepted"]].copy()
+                n_total    = len(results_df)
+                n_accepted = len(accepted_df)
+                acceptance_rate = n_accepted / n_total if n_total else 0.0
 
-                        # Allocate seats for external grants
-                        external_plan = pd.DataFrame()
-                        if not external_intake_df.empty and external_grant_seats > 0:
-                            external_plan = allocate_seats_post_intake_representation(
-                                df=external_intake_df,
-                                seats=external_grant_seats,
-                                min_per_country=0,
-                                max_seat_share=1.0,
-                                max_post_share=1.0,
-                            )
-                            external_plan["grant_type"] = "external"
+                # ── KPIs
+                st.markdown("#### النتائج")
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("إجمالي المتقدمين",        f"{n_total:,}")
+                k2.metric("المقاعد الدولية المتاحة", f"{intl_seats:,}")
+                k3.metric("المقبولون المقترحون",      f"{n_accepted:,}")
+                k4.metric("معدل القبول",               f"{acceptance_rate:.1%}")
 
-                        # Combine plans
-                        plans_to_combine = [p for p in [internal_plan, external_plan] if not p.empty]
-                        if plans_to_combine:
-                            plan = pd.concat(plans_to_combine, ignore_index=True)
-                        else:
-                            plan = pd.DataFrame()
+                # ── Charts
+                if not accepted_df.empty:
+                    ch1, ch2 = st.columns(2)
 
-                        if plan.empty:
-                            st.warning("لا يوجد خطة قبول متاحة.")
-                        else:
-                            # ---- KPIs
-                            total_apps = int(plan["applicants"].sum())
-                            total_admits = int(plan["target_admits"].sum())
-                            total_current = int(plan["current_students"].sum())
-                            post_total_all = total_current + intl_seats
+                    with ch1:
+                        st.markdown("##### المقبولون حسب الجنسية")
+                        nat_counts = (
+                            accepted_df["mapped_nationality"]
+                            .value_counts()
+                            .reset_index()
+                        )
+                        nat_counts.columns = ["الجنسية", "العدد"]
+                        fig_nat = px.bar(
+                            nat_counts, x="الجنسية", y="العدد",
+                            labels={"الجنسية": "الجنسية", "العدد": "العدد"}
+                        )
+                        fig_nat.update_traces(marker_color="#0d6efd", name="")
+                        fig_nat.update_layout(showlegend=False)
+                        st.plotly_chart(fig_nat, use_container_width=True)
 
-                            # Per grant type stats
-                            internal_admits = int(plan[plan["grant_type"] == "internal"]["target_admits"].sum()) if "grant_type" in plan.columns else 0
-                            external_admits = int(plan[plan["grant_type"] == "external"]["target_admits"].sum()) if "grant_type" in plan.columns else 0
+                    with ch2:
+                        st.markdown("##### المقبولون حسب التخصص المُسنَد")
+                        disc_chart_counts = (
+                            accepted_df["assigned_discipline"]
+                            .value_counts()
+                            .reset_index()
+                        )
+                        disc_chart_counts.columns = ["التخصص", "العدد"]
+                        fig_disc = px.bar(
+                            disc_chart_counts, x="التخصص", y="العدد",
+                            labels={"التخصص": "التخصص", "العدد": "العدد"}
+                        )
+                        fig_disc.update_traces(marker_color="#198754", name="")
+                        fig_disc.update_layout(showlegend=False)
+                        st.plotly_chart(fig_disc, use_container_width=True)
 
-                            # Intake acceptance rate (diagnostic only)
-                            intake_rate = (total_admits / total_apps) if total_apps else 0.0
+                # ── Accepted table
+                choice_label = {1: "الخيار الأول", 2: "الخيار الثاني", 3: "الخيار الثالث", 0: "—"}
+                st.markdown("#### قائمة المقبولين المقترحين")
+                show_accepted = accepted_df[[
+                    "applicant_id", "nationality", "mapped_nationality",
+                    "disc1", "disc2", "disc3",
+                    "assigned_discipline", "accepted_at_choice",
+                    "acceptance_reason"
+                ]].copy()
+                show_accepted["accepted_at_choice"] = show_accepted["accepted_at_choice"].map(choice_label)
+                show_accepted = show_accepted.rename(columns={
+                    "applicant_id":        "رقم المتقدم",
+                    "nationality":         "الجنسية (الملف)",
+                    "mapped_nationality":  "الجنسية (معيارية)",
+                    "disc1":               "التخصص الأول",
+                    "disc2":               "التخصص الثاني",
+                    "disc3":               "التخصص الثالث",
+                    "assigned_discipline": "التخصص المُسنَد",
+                    "accepted_at_choice":  "رتبة الخيار",
+                    "acceptance_reason":   "سبب القبول",
+                })
+                st.dataframe(show_accepted, use_container_width=True, hide_index=True)
 
-                            st.markdown("#### إحصائيات عامة")
-                            m1, m2, m3, m4 = st.columns(4)
-                            m1.metric("إجمالي المتقدمين", f"{total_apps:,}")
-                            m2.metric("الطلاب الحاليين", f"{total_current:,}")
-                            m3.metric("المقبولين الجدد (المخطط)", f"{total_admits:,}")
-                            m4.metric("معدل القبول", f"{intake_rate:.2%}")
+                # ── Full results table
+                st.markdown("#### جدول كامل المتقدمين")
+                show_all = results_df[[
+                    "applicant_id", "nationality", "mapped_nationality",
+                    "disc1", "disc2", "disc3",
+                    "geo_score", "accepted",
+                    "assigned_discipline", "accepted_at_choice",
+                    "acceptance_reason"
+                ]].copy()
+                show_all["accepted"] = show_all["accepted"].map(
+                    {True: "مقبول", False: "غير مقبول"}
+                )
+                show_all["accepted_at_choice"] = show_all["accepted_at_choice"].map(choice_label)
+                show_all = show_all.rename(columns={
+                    "applicant_id":        "رقم المتقدم",
+                    "nationality":         "الجنسية (الملف)",
+                    "mapped_nationality":  "الجنسية (معيارية)",
+                    "disc1":               "التخصص الأول",
+                    "disc2":               "التخصص الثاني",
+                    "disc3":               "التخصص الثالث",
+                    "geo_score":           "نقاط التوازن الجغرافي",
+                    "accepted":            "الحالة",
+                    "assigned_discipline": "التخصص المُسنَد",
+                    "accepted_at_choice":  "رتبة الخيار",
+                    "acceptance_reason":   "السبب",
+                })
+                st.dataframe(show_all, use_container_width=True, hide_index=True)
 
-                            st.markdown("#### توزيع المقبولين حسب نوع المنحة")
-                            g1, g2 = st.columns(2)
-                            g1.metric("مقبولين - منح داخلية", f"{internal_admits:,}")
-                            g2.metric("مقبولين - منح خارجية", f"{external_admits:,}")
-
-                            # ---- Map
-                            # Aggregate by country for the map (sum across grant types)
-                            # Use max for current_students as it should be the same for both grant types
-                            plan_agg = plan.groupby(["country", "continent"]).agg({
-                                "applicants": "sum",
-                                "current_students": "max",
-                                "target_admits": "sum",
-                                "target_weight": "sum"
-                            }).reset_index()
-                            # Recalculate post_total and post_share after aggregation
-                            plan_agg["post_total"] = plan_agg["current_students"] + plan_agg["target_admits"]
-                            total_post = plan_agg["post_total"].sum()
-                            plan_agg["post_share"] = plan_agg["post_total"] / total_post if total_post > 0 else 0
-
-                            st.markdown("### 2) الخريطة العالمية للمقاعد المقترحة")
-                            plan_map = plan_agg.copy()
-
-                            # Map Arabic -> English names for Plotly if available
-                            if "ARABIC_TO_ENGLISH" in globals():
-                                plan_map["country_en"] = plan_map["country"].map(ARABIC_TO_ENGLISH).fillna(plan_map["country"])
-                            else:
-                                plan_map["country_en"] = plan_map["country"]
-
-                            fig_map = px.choropleth(
-                                plan_map,
-                                locations="country_en",
-                                locationmode="country names",
-                                color="target_admits",
-                                hover_name="country",
-                                hover_data={
-                                    "applicants": True,
-                                    "current_students": True,
-                                    "target_admits": True
-                                },
-                                labels={"target_admits": "المقاعد المقترحة"}
-                            )
-                            fig_map.update_layout(
-                                geo=dict(showframe=False, showcoastlines=False, projection_type="equirectangular"))
-                            st.plotly_chart(fig_map, use_container_width=True)
-
-                            # ---- Top bar
-                            st.markdown("### 3) أعلى الدول من حيث المقاعد المقترحة")
-                            topN = plan_agg.sort_values("target_admits", ascending=False).head(20).copy()
-                            fig_bar = px.bar(
-                                topN,
-                                x="country",
-                                y="target_admits",
-                                hover_data={
-                                    "applicants": True,
-                                    "current_students": True
-                                },
-                                labels={"country": "الدولة", "target_admits": "المقاعد المقترحة"}
-                            )
-                            st.plotly_chart(fig_bar, use_container_width=True)
-
-                            # ---- Table + download
-                            st.markdown("### 4) جدول الخطة")
-                            show = plan.rename(columns={
-                                "country": "الدولة",
-                                "continent": "القارة",
-                                "applicants": "عدد المتقدمين",
-                                "current_students": "الطلاب الحاليين",
-                                "target_admits": "المقاعد المقترحة",
-                                "post_total": "إجمالي بعد القبول",
-                                "post_share": "حصة بعد القبول",
-                                "target_weight": "وزن مستهدف",
-                                "grant_type": "نوع المنحة"
-                            })
-                            st.dataframe(show, use_container_width=True, hide_index=True)
-
-                            csv = show.to_csv(index=False).encode("utf-8")
-                            st.download_button(
-                                "📥 تنزيل خطة القبول (CSV)",
-                                data=csv,
-                                file_name="admissions_plan.csv",
-                                mime="text/csv",
-                            )
+                # ── Download
+                csv_out = show_all.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 تنزيل النتائج (CSV)",
+                    data=csv_out,
+                    file_name="acceptance_plan.csv",
+                    mime="text/csv",
+                )
 
     with tab1:
         # Overview tab
