@@ -980,7 +980,7 @@ def main():
                 st.dataframe(show_all, use_container_width=True, hide_index=True)
 
                 # ── Download
-                csv_out = show_all.to_csv(index=False).encode("utf-8")
+                csv_out = show_all.to_csv(index=False).encode("utf-8-sig")
                 st.download_button(
                     "📥 تنزيل النتائج (CSV)",
                     data=csv_out,
@@ -1202,7 +1202,7 @@ def main():
         )
 
         # Download button
-        csv = display_df.to_csv(index=False).encode('utf-8')
+        csv = display_df.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 تحميل البيانات كملف CSV",
             data=csv,
