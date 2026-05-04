@@ -673,17 +673,30 @@ def compute_grant_allocations(
                 country_res[region] = country_res.get(region, 0) + seats
 
         # Expand continent reservations proportionally among countries in that continent
+        # Uses floor + distribute-remainder to guarantee sum == cont_seats
         for cont, cont_seats in continent_res.items():
             cont_df = country_hist[
                 country_hist["country"].apply(lambda c: cont_lookup.get(c, "") == cont)
-            ]
+            ].copy()
             if cont_df.empty:
                 continue
             ct = cont_df["hist_5yr_total"].sum()
             n_c = len(cont_df)
-            for _, crow in cont_df.iterrows():
-                share = crow["hist_5yr_total"] / ct if ct > 0 else 1 / n_c
-                country_res[crow["country"]] = country_res.get(crow["country"], 0) + round(share * cont_seats)
+            if ct > 0:
+                cont_df["raw_share"] = cont_df["hist_5yr_total"] / ct * cont_seats
+            else:
+                cont_df["raw_share"] = cont_seats / n_c
+            cont_df["floor_alloc"] = cont_df["raw_share"].apply(np.floor).astype(int)
+            cont_leftover = cont_seats - cont_df["floor_alloc"].sum()
+            if cont_leftover > 0:
+                top_cont_idx = (cont_df["raw_share"] - cont_df["floor_alloc"]).nlargest(
+                    min(int(cont_leftover), n_c)
+                ).index
+                cont_df.loc[top_cont_idx, "floor_alloc"] += 1
+            for country_c, alloc_c in zip(
+                cont_df["country"].tolist(), cont_df["floor_alloc"].tolist()
+            ):
+                country_res[country_c] = country_res.get(country_c, 0) + alloc_c
 
         reserved_total = sum(country_res.values())
         remaining = max(0, ext - reserved_total)
@@ -715,8 +728,9 @@ def compute_grant_allocations(
                 top_idx = (non_res["raw_alloc"] - non_res["alloc"]).nlargest(int(leftover)).index
                 non_res.loc[top_idx, "alloc"] += 1
 
-            for _, crow in non_res.iterrows():
-                balanced[crow["country"]] = int(crow["alloc"])
+            balanced = dict(
+                zip(non_res["country"].tolist(), non_res["alloc"].tolist())
+            )
 
         allocations[yr] = {**country_res, **balanced}
 
@@ -1297,7 +1311,7 @@ def main():
             for country in all_alloc_countries_fc:
                 hist_r = country_hist_fc[country_hist_fc["country"] == country]
                 hist_avg = (
-                    float(hist_r["hist_annual_avg"].values[0])
+                    float(hist_r["hist_annual_avg"].iloc[0])
                     if not hist_r.empty
                     else 0.0
                 )
