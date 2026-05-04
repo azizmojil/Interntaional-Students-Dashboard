@@ -1103,8 +1103,8 @@ def main():
         st.subheader("معدلات القبول المتوقعة للدول — السنوات الخمس القادمة")
         st.caption(
             "يستند الحساب إلى بيانات القبول الفعلية خلال السنوات الخمس الماضية. "
-            "المنح الداخلية (25 افتراضياً) تُعرض كرقم ثابت دون توزيع على الدول. "
-            "المنح الخارجية (27 افتراضياً) تنقسم إلى مقاعد محجوزة ومقاعد موزعة لتحقيق التوازن."
+            "أدخل إجمالي المنح لكل سنة وسيتم تقسيمها تلقائياً: 25% منح داخلية و75% منح خارجية. "
+            "المنح الخارجية تنقسم إلى مقاعد محجوزة ومقاعد موزعة لتحقيق التوازن."
         )
 
         # ── Build historical data ───────────────────────────────────────────────
@@ -1156,27 +1156,42 @@ def main():
 
             # ── Section 1: Grant configuration ─────────────────────────────────
             st.markdown("### 1) إعداد المنح")
-            col_int_fc, _ = st.columns([2, 3])
-            internal_grants_fc = col_int_fc.number_input(
-                "المنح الداخلية (ثابت لجميع السنوات)",
-                min_value=0,
-                value=25,
-                step=1,
-                key="fc_internal_grants",
+            st.caption(
+                "أدخل إجمالي المنح لكل سنة — سيتم توزيعها تلقائياً: "
+                "**25% منح داخلية** و **75% منح خارجية**."
             )
-
-            st.markdown("**المنح الخارجية المتاحة لكل سنة:**")
-            ext_yr_cols = st.columns(5)
-            external_grants_fc = {}
+            total_yr_cols = st.columns(5)
+            total_grants_fc = {}
             for i, yr in enumerate(forecast_years_fc):
-                with ext_yr_cols[i]:
-                    external_grants_fc[yr] = st.number_input(
-                        f"{yr}هـ",
+                with total_yr_cols[i]:
+                    total_grants_fc[yr] = st.number_input(
+                        f"إجمالي {yr}هـ",
                         min_value=0,
-                        value=27,
+                        value=52,
                         step=1,
-                        key=f"fc_ext_yr_{yr}",
+                        key=f"fc_total_yr_{yr}",
                     )
+
+            # Compute the 25 / 75 split for each year
+            internal_grants_fc_by_year = {
+                yr: round(total_grants_fc[yr] * 0.25) for yr in forecast_years_fc
+            }
+            external_grants_fc = {
+                yr: total_grants_fc[yr] - internal_grants_fc_by_year[yr]
+                for yr in forecast_years_fc
+            }
+
+            # Use a single representative value for internal grants
+            # (shown in the results table; all years share the same formula)
+            internal_grants_fc = internal_grants_fc_by_year[forecast_years_fc[0]]
+
+            # Show computed split
+            split_cols = st.columns(5)
+            for i, yr in enumerate(forecast_years_fc):
+                split_cols[i].info(
+                    f"داخلي: **{internal_grants_fc_by_year[yr]}**  \n"
+                    f"خارجي: **{external_grants_fc[yr]}**"
+                )
 
             st.markdown("---")
 
