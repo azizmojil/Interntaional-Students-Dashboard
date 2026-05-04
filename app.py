@@ -1223,11 +1223,16 @@ def main():
                     key=f"fc_res_region_{i}",
                 )
                 current_type = res_item.get("seat_type", "flat")
+                _type_opts = ["flat", "pct", "pct_remaining"]
+                _type_idx = _type_opts.index(current_type) if current_type in _type_opts else 0
                 chosen_type = res_cols[1].selectbox(
                     "النوع",
-                    options=["flat", "pct"],
-                    format_func=lambda x: "عدد ثابت" if x == "flat" else "نسبة %",
-                    index=0 if current_type == "flat" else 1,
+                    options=_type_opts,
+                    format_func=lambda x: (
+                        "عدد ثابت" if x == "flat"
+                        else ("نسبة % من الإجمالي" if x == "pct" else "نسبة % من المتبقي")
+                    ),
+                    index=_type_idx,
                     key=f"fc_res_type_{i}",
                 )
                 yr_seats_res = {}
@@ -1261,10 +1266,22 @@ def main():
             # Warn if reservations exceed external grants in any year
             for yr in forecast_years_fc:
                 ext_yr_w = external_grants_fc[yr]
+                _flat_total_w = sum(
+                    res.get("seats", {}).get(yr, 0)
+                    for res in st.session_state.fc_reservations
+                    if res.get("region") and res.get("seat_type") == "flat"
+                )
+                _remaining_w = max(0, ext_yr_w - _flat_total_w)
                 total_res_yr = sum(
-                    round(res.get("seats", {}).get(yr, 0) / 100 * ext_yr_w)
-                    if res.get("seat_type") == "pct" and ext_yr_w > 0
-                    else res.get("seats", {}).get(yr, 0)
+                    (
+                        round(res.get("seats", {}).get(yr, 0) / 100 * ext_yr_w)
+                        if res.get("seat_type") == "pct" and ext_yr_w > 0
+                        else (
+                            round(res.get("seats", {}).get(yr, 0) / 100 * _remaining_w)
+                            if res.get("seat_type") == "pct_remaining"
+                            else res.get("seats", {}).get(yr, 0)
+                        )
+                    )
                     for res in st.session_state.fc_reservations
                     if res.get("region")
                 )
@@ -1286,7 +1303,7 @@ def main():
 
             # Row: Internal grants
             int_row_fc = {
-                "الدولة / المنطقة": "🏫 المنح الداخلية",
+                "الدولة / المنطقة": "المنح الداخلية",
                 "النوع": "داخلي",
             }
             for yr in forecast_years_fc:
@@ -1296,7 +1313,7 @@ def main():
 
             # Row: External grants total
             ext_total_row_fc = {
-                "الدولة / المنطقة": "🌐 إجمالي المنح الخارجية",
+                "الدولة / المنطقة": "إجمالي المنح الخارجية",
                 "النوع": "خارجي (إجمالي)",
             }
             for yr in forecast_years_fc:
@@ -1311,15 +1328,24 @@ def main():
             for res in valid_reservations_fc:
                 region_label = res["region"]
                 res_row = {
-                    "الدولة / المنطقة": f"📌 {region_label}",
+                    "الدولة / المنطقة": region_label,
                     "النوع": "محجوز",
                 }
                 for yr in forecast_years_fc:
                     raw = res.get("seats", {}).get(yr, 0)
                     ext_yr = external_grants_fc[yr]
+                    flat_total_yr = sum(
+                        r.get("seats", {}).get(yr, 0)
+                        for r in valid_reservations_fc
+                        if r.get("seat_type") == "flat"
+                    )
+                    remaining_yr = max(0, ext_yr - flat_total_yr)
                     if res.get("seat_type") == "pct":
                         seats = round(raw / 100 * ext_yr) if ext_yr > 0 else 0
-                        res_row[f"مقاعد {yr}هـ"] = f"{seats} ({raw}%)"
+                        res_row[f"مقاعد {yr}هـ"] = f"{seats} ({raw}% من الإجمالي)"
+                    elif res.get("seat_type") == "pct_remaining":
+                        seats = round(raw / 100 * remaining_yr) if remaining_yr > 0 else 0
+                        res_row[f"مقاعد {yr}هـ"] = f"{seats} ({raw}% من المتبقي)"
                     else:
                         seats = raw
                         res_row[f"مقاعد {yr}هـ"] = seats
@@ -1330,15 +1356,27 @@ def main():
 
             # Row: "Other" — remaining external seats after reservations
             other_row_fc = {
-                "الدولة / المنطقة": "🌍 أخرى (توزيع متوازن)",
+                "الدولة / المنطقة": "أخرى (توزيع متوازن)",
                 "النوع": "توازن",
             }
             for yr in forecast_years_fc:
                 ext_yr = external_grants_fc[yr]
+                flat_total_yr = sum(
+                    r.get("seats", {}).get(yr, 0)
+                    for r in valid_reservations_fc
+                    if r.get("seat_type") == "flat"
+                )
+                remaining_yr = max(0, ext_yr - flat_total_yr)
                 reserved_total_yr = sum(
-                    round(r.get("seats", {}).get(yr, 0) / 100 * ext_yr)
-                    if r.get("seat_type") == "pct" and ext_yr > 0
-                    else r.get("seats", {}).get(yr, 0)
+                    (
+                        round(r.get("seats", {}).get(yr, 0) / 100 * ext_yr)
+                        if r.get("seat_type") == "pct" and ext_yr > 0
+                        else (
+                            round(r.get("seats", {}).get(yr, 0) / 100 * remaining_yr)
+                            if r.get("seat_type") == "pct_remaining"
+                            else r.get("seats", {}).get(yr, 0)
+                        )
+                    )
                     for r in valid_reservations_fc
                 )
                 other_seats = max(0, ext_yr - reserved_total_yr)
@@ -1365,20 +1403,26 @@ def main():
             # ── Bar chart: reserved areas + Other for year 1 ───────────────────
             yr1_fc = forecast_years_fc[0]
             ext_yr1 = external_grants_fc[yr1_fc]
+            flat_total_yr1 = sum(
+                r.get("seats", {}).get(yr1_fc, 0)
+                for r in valid_reservations_fc
+                if r.get("seat_type") == "flat"
+            )
+            remaining_yr1 = max(0, ext_yr1 - flat_total_yr1)
             chart_rows_fc = []
             for res in valid_reservations_fc:
                 raw = res.get("seats", {}).get(yr1_fc, 0)
-                seats = round(raw / 100 * ext_yr1) if res.get("seat_type") == "pct" and ext_yr1 > 0 else raw
+                if res.get("seat_type") == "pct":
+                    seats = round(raw / 100 * ext_yr1) if ext_yr1 > 0 else 0
+                elif res.get("seat_type") == "pct_remaining":
+                    seats = round(raw / 100 * remaining_yr1) if remaining_yr1 > 0 else 0
+                else:
+                    seats = raw
                 if seats > 0:
                     chart_rows_fc.append(
                         {"المنطقة": res["region"], "المقاعد": seats}
                     )
-            reserved_total_yr1 = sum(
-                round(r.get("seats", {}).get(yr1_fc, 0) / 100 * ext_yr1)
-                if r.get("seat_type") == "pct" and ext_yr1 > 0
-                else r.get("seats", {}).get(yr1_fc, 0)
-                for r in valid_reservations_fc
-            )
+            reserved_total_yr1 = sum(row["المقاعد"] for row in chart_rows_fc)
             other_yr1 = max(0, ext_yr1 - reserved_total_yr1)
             if other_yr1 > 0:
                 chart_rows_fc.append({"المنطقة": "أخرى", "المقاعد": other_yr1})
