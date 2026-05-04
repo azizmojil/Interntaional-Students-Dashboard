@@ -11,7 +11,8 @@ from utils import (
     format_hijri_date,
     map_gender,
     format_plot,
-    ARABIC_TO_ENGLISH
+    ARABIC_TO_ENGLISH,
+    NATIONALITY_MAPPING,
 )
 
 # Page configuration
@@ -627,6 +628,115 @@ def suggest_applicants(
     return data
 
 
+def compute_grant_allocations(
+    forecast_years: list,
+    external_grants: dict,
+    reservations: list,
+    country_hist: pd.DataFrame,
+    cont_lookup: dict,
+    continents_list: list,
+) -> dict:
+    """
+    Compute per-country external grant allocation for each forecast year.
+
+    Parameters
+    ----------
+    forecast_years   : [int, …]  ordered list of forecast Hijri years
+    external_grants  : {year: int}  number of external grants per year
+    reservations     : list of {"region": str, "seats": {year: int}}
+                       region is either a continent name (Arabic) or a country name (Arabic)
+    country_hist     : DataFrame with columns ['country', 'hist_5yr_total', 'hist_annual_avg']
+    cont_lookup      : {country_ar: continent_ar}
+    continents_list  : [str, …] list of known continent names (Arabic)
+
+    Returns
+    -------
+    {year: {country_ar: seats_int}}
+    """
+    allocations = {}
+
+    for yr in forecast_years:
+        ext = external_grants.get(yr, 0)
+
+        # --- Resolve reservations into per-country counts -----------------
+        country_res: dict = {}   # {country_ar: reserved_seats}
+        continent_res: dict = {}  # {continent_ar: reserved_seats}
+
+        for res in reservations:
+            region = res.get("region", "")
+            seats = res.get("seats", {}).get(yr, 0)
+            if not region or seats == 0:
+                continue
+            if region in continents_list:
+                continent_res[region] = continent_res.get(region, 0) + seats
+            else:
+                country_res[region] = country_res.get(region, 0) + seats
+
+        # Expand continent reservations proportionally among countries in that continent
+        # Uses floor + distribute-remainder to guarantee sum == cont_seats
+        for cont, cont_seats in continent_res.items():
+            cont_df = country_hist[
+                country_hist["country"].apply(lambda c: cont_lookup.get(c, "") == cont)
+            ].copy()
+            if cont_df.empty:
+                continue
+            ct = cont_df["hist_5yr_total"].sum()
+            n_c = len(cont_df)
+            if ct > 0:
+                cont_df["raw_share"] = cont_df["hist_5yr_total"] / ct * cont_seats
+            else:
+                cont_df["raw_share"] = cont_seats / n_c
+            cont_df["floor_alloc"] = cont_df["raw_share"].apply(np.floor).astype(int)
+            cont_leftover = cont_seats - cont_df["floor_alloc"].sum()
+            if cont_leftover > 0:
+                top_cont_idx = (cont_df["raw_share"] - cont_df["floor_alloc"]).nlargest(
+                    min(int(cont_leftover), n_c)
+                ).index
+                cont_df.loc[top_cont_idx, "floor_alloc"] += 1
+            for country_c, alloc_c in zip(
+                cont_df["country"].tolist(), cont_df["floor_alloc"].tolist()
+            ):
+                country_res[country_c] = country_res.get(country_c, 0) + alloc_c
+
+        reserved_total = sum(country_res.values())
+        remaining = max(0, ext - reserved_total)
+
+        # --- Balance remaining seats among non-reserved countries ----------
+        non_res = country_hist[~country_hist["country"].isin(country_res)].copy()
+        balanced: dict = {}
+
+        if remaining > 0 and not non_res.empty:
+            n = len(non_res)
+            total_hist = non_res["hist_5yr_total"].sum()
+
+            if total_hist > 0:
+                non_res["share"] = non_res["hist_5yr_total"] / total_hist
+                # Inverse share: underrepresented countries get more seats
+                non_res["inv_score"] = 1.0 - non_res["share"]
+                inv_sum = non_res["inv_score"].sum()
+                if inv_sum > 0:
+                    non_res["raw_alloc"] = non_res["inv_score"] / inv_sum * remaining
+                else:
+                    non_res["raw_alloc"] = remaining / n
+            else:
+                non_res["raw_alloc"] = remaining / n
+
+            # Floor + distribute leftover seats to top fractional remainders
+            non_res["alloc"] = non_res["raw_alloc"].apply(np.floor).astype(int)
+            leftover = remaining - non_res["alloc"].sum()
+            if leftover > 0:
+                top_idx = (non_res["raw_alloc"] - non_res["alloc"]).nlargest(int(leftover)).index
+                non_res.loc[top_idx, "alloc"] += 1
+
+            balanced = dict(
+                zip(non_res["country"].tolist(), non_res["alloc"].tolist())
+            )
+
+        allocations[yr] = {**country_res, **balanced}
+
+    return allocations
+
+
 # Main app
 def main():
     # Title
@@ -742,8 +852,9 @@ def main():
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
     # Create tabs for different views
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات", "🎯 خطة القبول"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+        ["📈 نظرة عامة", "🌍 التحليل الجغرافي", "📊 الأداء الأكاديمي", "📋 جدول البيانات",
+         "🎯 خطة القبول", "🌐 معدلات القبول المتوقعة"])
 
     with tab5:
         st.subheader("خطة القبول")
@@ -987,6 +1098,300 @@ def main():
                     file_name="acceptance_plan.csv",
                     mime="text/csv",
                 )
+
+    with tab6:
+        st.subheader("معدلات القبول المتوقعة للدول — السنوات الخمس القادمة")
+        st.caption(
+            "يستند الحساب إلى بيانات القبول الفعلية خلال السنوات الخمس الماضية. "
+            "المنح الداخلية (25 افتراضياً) تُعرض كرقم ثابت دون توزيع على الدول. "
+            "المنح الخارجية (27 افتراضياً) تنقسم إلى مقاعد محجوزة ومقاعد موزعة لتحقيق التوازن."
+        )
+
+        # ── Build historical data ───────────────────────────────────────────────
+        all_timeline_years = df["timeline_year"].dropna().astype(int)
+        if all_timeline_years.empty:
+            st.warning("لا توجد بيانات تاريخية كافية لإجراء الحساب.")
+        else:
+            base_year_fc = int(all_timeline_years.max())
+            hist_years_fc = list(range(base_year_fc - 4, base_year_fc + 1))
+            forecast_years_fc = [base_year_fc + i for i in range(1, 6)]
+
+            hist_df_fc = df[
+                df["timeline_year"].isin(hist_years_fc) & (df["country"] != "غير محدد")
+            ].copy()
+
+            # Per-country totals and annual averages over the last 5 years
+            country_hist_fc = (
+                hist_df_fc.groupby("country")
+                .size()
+                .reset_index(name="hist_5yr_total")
+            )
+            country_hist_fc["hist_annual_avg"] = (
+                country_hist_fc["hist_5yr_total"] / 5
+            ).round(2)
+            country_hist_fc = country_hist_fc.sort_values(
+                "hist_5yr_total", ascending=False
+            ).reset_index(drop=True)
+
+            # Continent lookup and option lists
+            cont_lookup_fc = {
+                v["country_ar"]: v["continent"]
+                for v in NATIONALITY_MAPPING.values()
+                if v["country_ar"] != "غير محدد"
+            }
+            continents_fc = sorted(
+                {
+                    v["continent"]
+                    for v in NATIONALITY_MAPPING.values()
+                    if v["continent"] != "غير محدد"
+                }
+            )
+            countries_fc = sorted(
+                {
+                    v["country_ar"]
+                    for v in NATIONALITY_MAPPING.values()
+                    if v["country_ar"] != "غير محدد"
+                }
+            )
+
+            # ── Section 1: Grant configuration ─────────────────────────────────
+            st.markdown("### 1) إعداد المنح")
+            col_int_fc, _ = st.columns([2, 3])
+            internal_grants_fc = col_int_fc.number_input(
+                "المنح الداخلية (ثابت لجميع السنوات)",
+                min_value=0,
+                value=25,
+                step=1,
+                key="fc_internal_grants",
+            )
+
+            st.markdown("**المنح الخارجية المتاحة لكل سنة:**")
+            ext_yr_cols = st.columns(5)
+            external_grants_fc = {}
+            for i, yr in enumerate(forecast_years_fc):
+                with ext_yr_cols[i]:
+                    external_grants_fc[yr] = st.number_input(
+                        f"{yr}هـ",
+                        min_value=0,
+                        value=27,
+                        step=1,
+                        key=f"fc_ext_yr_{yr}",
+                    )
+
+            st.markdown("---")
+
+            # ── Section 2: Reserved seats ───────────────────────────────────────
+            st.markdown("### 2) المقاعد المحجوزة (اختياري)")
+            st.caption(
+                "أضف حجوزات لدول بعينها أو لمناطق جغرافية (مثال: أمريكا الجنوبية، أفريقيا). "
+                "تُحسم المقاعد المحجوزة من المنح الخارجية ثم يُوزَّع الباقي لتحقيق التوازن."
+            )
+
+            if "fc_reservations" not in st.session_state:
+                st.session_state.fc_reservations = []
+
+            to_del_fc = None
+            region_options_fc = [""] + continents_fc + countries_fc
+            for i, res_item in enumerate(st.session_state.fc_reservations):
+                res_cols = st.columns([3] + [1] * 5 + [1])
+                current_region = res_item.get("region", "")
+                sel_idx = (
+                    region_options_fc.index(current_region)
+                    if current_region in region_options_fc
+                    else 0
+                )
+                chosen_region = res_cols[0].selectbox(
+                    f"المنطقة / الدولة {i + 1}",
+                    options=region_options_fc,
+                    index=sel_idx,
+                    key=f"fc_res_region_{i}",
+                )
+                yr_seats_res = {}
+                for j, yr in enumerate(forecast_years_fc):
+                    yr_seats_res[yr] = res_cols[j + 1].number_input(
+                        f"{yr}هـ",
+                        min_value=0,
+                        value=res_item.get("seats", {}).get(yr, 0),
+                        step=1,
+                        key=f"fc_res_s_{i}_{yr}",
+                    )
+                if res_cols[-1].button("حذف", key=f"fc_res_del_{i}"):
+                    to_del_fc = i
+                st.session_state.fc_reservations[i] = {
+                    "region": chosen_region,
+                    "seats": yr_seats_res,
+                }
+
+            if to_del_fc is not None:
+                st.session_state.fc_reservations.pop(to_del_fc)
+                st.rerun()
+
+            if st.button("+ أضف حجز", key="fc_add_res"):
+                st.session_state.fc_reservations.append(
+                    {"region": "", "seats": {yr: 0 for yr in forecast_years_fc}}
+                )
+                st.rerun()
+
+            # Warn if reservations exceed external grants in any year
+            for yr in forecast_years_fc:
+                total_res_yr = sum(
+                    res.get("seats", {}).get(yr, 0)
+                    for res in st.session_state.fc_reservations
+                    if res.get("region")
+                )
+                if total_res_yr > external_grants_fc[yr]:
+                    st.warning(
+                        f"إجمالي المقاعد المحجوزة ({total_res_yr}) "
+                        f"يتجاوز المنح الخارجية ({external_grants_fc[yr]}) لسنة {yr}هـ."
+                    )
+
+            st.markdown("---")
+
+            # ── Section 3: Compute allocations ─────────────────────────────────
+            year_allocs_fc = compute_grant_allocations(
+                forecast_years=forecast_years_fc,
+                external_grants=external_grants_fc,
+                reservations=st.session_state.fc_reservations,
+                country_hist=country_hist_fc,
+                cont_lookup=cont_lookup_fc,
+                continents_list=continents_fc,
+            )
+
+            # Identify reserved countries (for display type label)
+            reserved_countries_fc: set = set()
+            for res in st.session_state.fc_reservations:
+                region = res.get("region", "")
+                if not region:
+                    continue
+                if region in continents_fc:
+                    for c in cont_lookup_fc:
+                        if cont_lookup_fc[c] == region:
+                            reserved_countries_fc.add(c)
+                else:
+                    reserved_countries_fc.add(region)
+
+            all_alloc_countries_fc = sorted(
+                set().union(*[set(v.keys()) for v in year_allocs_fc.values()])
+            )
+
+            # ── Section 4: Results table ────────────────────────────────────────
+            st.markdown("### 3) جدول توزيع المنح ومعدلات القبول")
+            st.caption(
+                "معدل القبول = عدد المقاعد المخصصة ÷ متوسط الطلاب المقبولين سنوياً خلال الخمس سنوات الماضية. "
+                "نسبة التوزيع = حصة الدولة من إجمالي المنح الخارجية لتلك السنة."
+            )
+
+            table_rows_fc = []
+
+            # Row: Internal grants (flat — no per-country breakdown)
+            int_row_fc = {
+                "الدولة / المنطقة": "🏫 المنح الداخلية",
+                "النوع": "داخلي",
+                "متوسط القبول التاريخي (طالب/سنة)": "—",
+            }
+            for yr in forecast_years_fc:
+                int_row_fc[f"مقاعد {yr}هـ"] = internal_grants_fc
+                int_row_fc[f"نسبة التوزيع {yr}هـ"] = "—"
+                int_row_fc[f"معدل القبول {yr}هـ"] = "—"
+            table_rows_fc.append(int_row_fc)
+
+            # Row: External grants total
+            ext_total_row_fc = {
+                "الدولة / المنطقة": "🌐 إجمالي المنح الخارجية",
+                "النوع": "خارجي (إجمالي)",
+                "متوسط القبول التاريخي (طالب/سنة)": "—",
+            }
+            for yr in forecast_years_fc:
+                ext_total_row_fc[f"مقاعد {yr}هـ"] = external_grants_fc[yr]
+                ext_total_row_fc[f"نسبة التوزيع {yr}هـ"] = "100%"
+                ext_total_row_fc[f"معدل القبول {yr}هـ"] = "—"
+            table_rows_fc.append(ext_total_row_fc)
+
+            # Rows: per country
+            for country in all_alloc_countries_fc:
+                hist_r = country_hist_fc[country_hist_fc["country"] == country]
+                hist_avg = (
+                    float(hist_r["hist_annual_avg"].iloc[0])
+                    if not hist_r.empty
+                    else 0.0
+                )
+                row_type = (
+                    "محجوز" if country in reserved_countries_fc else "توازن"
+                )
+                c_row = {
+                    "الدولة / المنطقة": country,
+                    "النوع": row_type,
+                    "متوسط القبول التاريخي (طالب/سنة)": (
+                        hist_avg if hist_avg > 0 else "—"
+                    ),
+                }
+                for yr in forecast_years_fc:
+                    seats = year_allocs_fc[yr].get(country, 0)
+                    ext_yr = external_grants_fc[yr]
+                    alloc_pct = (
+                        f"{seats / ext_yr:.1%}" if ext_yr > 0 else "—"
+                    )
+                    acceptance_rate = (
+                        f"{seats / hist_avg:.1%}"
+                        if hist_avg > 0
+                        else "جديد"
+                    )
+                    c_row[f"مقاعد {yr}هـ"] = seats
+                    c_row[f"نسبة التوزيع {yr}هـ"] = alloc_pct
+                    c_row[f"معدل القبول {yr}هـ"] = acceptance_rate
+                table_rows_fc.append(c_row)
+
+            result_table_fc = pd.DataFrame(table_rows_fc)
+            st.dataframe(result_table_fc, use_container_width=True, hide_index=True)
+
+            # ── Summary metrics per year ────────────────────────────────────────
+            st.markdown("#### ملخص المنح لكل سنة")
+            sum_cols = st.columns(5)
+            for i, yr in enumerate(forecast_years_fc):
+                alloc_ext_total = sum(year_allocs_fc[yr].values())
+                grand_total = internal_grants_fc + alloc_ext_total
+                sum_cols[i].metric(
+                    label=f"{yr}هـ",
+                    value=f"{grand_total} منحة",
+                    delta=f"{alloc_ext_total} خارجي",
+                )
+
+            # ── Bar chart: distribution for year 1 ─────────────────────────────
+            yr1_fc = forecast_years_fc[0]
+            chart_data_fc = pd.DataFrame(
+                [
+                    {"الدولة": c, "المقاعد": year_allocs_fc[yr1_fc].get(c, 0)}
+                    for c in all_alloc_countries_fc
+                    if year_allocs_fc[yr1_fc].get(c, 0) > 0
+                ]
+            ).sort_values("المقاعد", ascending=False).head(25)
+
+            if not chart_data_fc.empty:
+                st.markdown(
+                    f"#### توزيع المقاعد الخارجية — {yr1_fc}هـ (أعلى 25 دولة)"
+                )
+                fig_fc = px.bar(
+                    chart_data_fc,
+                    x="الدولة",
+                    y="المقاعد",
+                    color="المقاعد",
+                    color_continuous_scale="Blues",
+                    labels={"الدولة": "الدولة", "المقاعد": "المقاعد المخصصة"},
+                )
+                fig_fc.update_layout(
+                    showlegend=False, coloraxis_showscale=False
+                )
+                st.plotly_chart(format_plot(fig_fc), use_container_width=True)
+
+            # ── Download ────────────────────────────────────────────────────────
+            csv_fc = result_table_fc.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                "📥 تنزيل جدول التوزيع (CSV)",
+                data=csv_fc,
+                file_name="acceptance_forecast.csv",
+                mime="text/csv",
+                key="fc_download_btn",
+            )
 
     with tab1:
         # Overview tab
