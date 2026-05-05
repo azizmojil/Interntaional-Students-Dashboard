@@ -1363,11 +1363,29 @@ def main():
                     )
                 table_rows_fc.append(res_row)
 
-            # Row: "Other" — remaining external seats after reservations
-            other_row_fc = {
-                "الدولة / المنطقة": "أخرى (توزيع متوازن)",
-                "النوع": "توازن",
-            }
+            # Rows: balanced distribution — remaining seats spread across
+            # under-represented countries (excluding those in reserved groups)
+
+            # Build the set of countries already covered by reservations
+            covered_set_fc: set = set()
+            for _res in valid_reservations_fc:
+                _region = _res.get("region", "")
+                if not _region:
+                    continue
+                if _region in continents_fc:
+                    # Exclude every country belonging to this continent
+                    for _c, _cont in cont_lookup_fc.items():
+                        if _cont == _region:
+                            covered_set_fc.add(_c)
+                else:
+                    covered_set_fc.add(_region)
+
+            non_covered_df_fc = country_hist_fc[
+                ~country_hist_fc["country"].isin(covered_set_fc)
+            ].copy()
+
+            # Per-year balanced allocation
+            balanced_by_yr_fc: dict = {}
             for yr in forecast_years_fc:
                 ext_yr = external_grants_fc[yr]
                 flat_total_yr = _flat_reserved_total(valid_reservations_fc, yr)
@@ -1376,12 +1394,50 @@ def main():
                     _reservation_seats(r, yr, ext_yr, remaining_yr)
                     for r in valid_reservations_fc
                 )
-                other_seats = max(0, ext_yr - reserved_total_yr)
-                other_row_fc[f"مقاعد {yr}هـ"] = other_seats
-                other_row_fc[f"نسبة التوزيع {yr}هـ"] = (
-                    f"{other_seats / ext_yr:.1%}" if ext_yr > 0 else "—"
-                )
-            table_rows_fc.append(other_row_fc)
+                remaining_bal = max(0, ext_yr - reserved_total_yr)
+
+                if remaining_bal > 0 and not non_covered_df_fc.empty:
+                    nc = non_covered_df_fc.copy()
+                    n_nc = len(nc)
+                    total_hist_nc = nc["hist_5yr_total"].sum()
+                    if total_hist_nc > 0:
+                        nc["_share"] = nc["hist_5yr_total"] / total_hist_nc
+                        nc["_inv"] = 1.0 - nc["_share"]
+                        inv_sum_nc = nc["_inv"].sum()
+                        nc["_raw"] = (
+                            nc["_inv"] / inv_sum_nc * remaining_bal
+                            if inv_sum_nc > 0
+                            else remaining_bal / n_nc
+                        )
+                    else:
+                        nc["_raw"] = remaining_bal / n_nc
+                    nc["_alloc"] = nc["_raw"].apply(np.floor).astype(int)
+                    _leftover = remaining_bal - nc["_alloc"].sum()
+                    if _leftover > 0:
+                        _top = (nc["_raw"] - nc["_alloc"]).nlargest(int(_leftover)).index
+                        nc.loc[_top, "_alloc"] += 1
+                    balanced_by_yr_fc[yr] = dict(
+                        zip(nc["country"].tolist(), nc["_alloc"].tolist())
+                    )
+                else:
+                    balanced_by_yr_fc[yr] = {}
+
+            # Collect countries that receive at least 1 seat across any year
+            _bal_countries = sorted(
+                {c for _yr_a in balanced_by_yr_fc.values() for c, s in _yr_a.items() if s > 0},
+                key=lambda c: sum(balanced_by_yr_fc[y].get(c, 0) for y in forecast_years_fc),
+                reverse=True,
+            )
+            for _country in _bal_countries:
+                _c_row = {"الدولة / المنطقة": _country, "النوع": "توازن"}
+                for yr in forecast_years_fc:
+                    _seats = balanced_by_yr_fc[yr].get(_country, 0)
+                    ext_yr = external_grants_fc[yr]
+                    _c_row[f"مقاعد {yr}هـ"] = _seats
+                    _c_row[f"نسبة التوزيع {yr}هـ"] = (
+                        f"{_seats / ext_yr:.1%}" if ext_yr > 0 and _seats > 0 else "—"
+                    )
+                table_rows_fc.append(_c_row)
 
             result_table_fc = pd.DataFrame(table_rows_fc)
             st.dataframe(result_table_fc, use_container_width=True, hide_index=True)
@@ -1409,13 +1465,13 @@ def main():
                     chart_rows_fc.append(
                         {"المنطقة": res["region"], "المقاعد": seats}
                     )
-            reserved_total_yr1 = sum(
-                _reservation_seats(r, yr1_fc, ext_yr1, remaining_yr1)
-                for r in valid_reservations_fc
-            )
-            other_yr1 = max(0, ext_yr1 - reserved_total_yr1)
-            if other_yr1 > 0:
-                chart_rows_fc.append({"المنطقة": "أخرى", "المقاعد": other_yr1})
+            for _c, _s in sorted(
+                balanced_by_yr_fc.get(yr1_fc, {}).items(),
+                key=lambda x: x[1],
+                reverse=True,
+            ):
+                if _s > 0:
+                    chart_rows_fc.append({"المنطقة": _c, "المقاعد": _s})
 
             chart_data_fc = pd.DataFrame(chart_rows_fc).sort_values(
                 "المقاعد", ascending=False
