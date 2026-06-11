@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import numpy as np
+import os
+import re
 from utils import (
     map_country,
     map_continent,
@@ -13,7 +15,9 @@ from utils import (
     format_plot,
     ARABIC_TO_ENGLISH,
     NATIONALITY_MAPPING,
+    normalize_semester,
 )
+
 
 # Page configuration
 st.set_page_config(
@@ -445,40 +449,71 @@ div[data-baseweb="popover"] div[data-baseweb="select"] input {
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_excel('data/data.xlsx')
+        if os.path.exists('data/newdata.csv'):
+            df = pd.read_csv('data/newdata.csv')
+        elif os.path.exists('data/data.xlsx'):
+            df = pd.read_excel('data/data.xlsx')
+        else:
+            raise FileNotFoundError("ملف البيانات غير موجود! يرجى التأكد من وجود 'data/newdata.csv' أو 'data/data.xlsx'.")
+
         processed = pd.DataFrame({
             "student_id": df.get("STD_ID"),
             "name": df.get("STD_NAME"),
-            "gender": df.get("GENDER").apply(map_gender),
-            "country": df.get("CITZ_DESC").apply(map_country),
-            "program": df.get("MAJR_DESC").fillna("غير محدد"),
-            "college": df.get("COLL_DESC").fillna("غير محدد"),
-            "status_detail": df.get("LAST_STST").fillna("غير محدد"),
-            "funding": df.get("CELG_CODE").fillna("غير محدد"),
-            "gpa": pd.to_numeric(df.get("STD_GPA"), errors="coerce"),
-            "hours": pd.to_numeric(df.get("STD_HRS"), errors="coerce"),
+            "gender": df.get("GENDER").apply(map_gender) if df.get("GENDER") is not None else "غير محدد",
+            "country": df.get("CITZ_DESC").apply(map_country) if df.get("CITZ_DESC") is not None else "غير محدد",
+            "program": df.get("MAJR_DESC").fillna("غير محدد") if df.get("MAJR_DESC") is not None else "غير محدد",
+            "college": df.get("COLL_DESC").fillna("غير محدد") if df.get("COLL_DESC") is not None else "غير محدد",
+            "status_detail": df.get("LAST_STST").fillna("غير محدد") if df.get("LAST_STST") is not None else "غير محدد",
+            "funding": df.get("CELG_CODE").fillna("غير محدد") if df.get("CELG_CODE") is not None else "غير محدد",
+            "gpa": pd.to_numeric(df.get("STD_GPA"), errors="coerce") if df.get("STD_GPA") is not None else np.nan,
+            "hours": pd.to_numeric(df.get("STD_HRS"), errors="coerce") if df.get("STD_HRS") is not None else np.nan,
             "term_admit": df.get("TERM_ADMIT"),
             "last_term": df.get("LAST_TERM"),
-            "level": df.get("LEVL_DESC").fillna("غير محدد"),
+            "level": df.get("LEVL_DESC").fillna("غير محدد") if df.get("LEVL_DESC") is not None else "غير مححد",
             "email": df.get("EMAIL"),
             "mobile": df.get("MOBILE"),
         })
 
         processed["status"] = processed["status_detail"].apply(categorize_status)
-        processed["admit_year"] = processed["term_admit"].apply(parse_hijri_year)
-        processed["last_term_year"] = processed["last_term"].apply(parse_hijri_year)
+        
+        # Use existing pre-parsed year/semester columns if they exist in dataset
+        if "TERM_ADMIT_YEAR" in df.columns:
+            processed["admit_year"] = pd.to_numeric(df["TERM_ADMIT_YEAR"], errors="coerce")
+        else:
+            processed["admit_year"] = processed["term_admit"].apply(parse_hijri_year)
+            
+        if "TERM_ADMIT_TEXT" in df.columns:
+            processed["admit_semester"] = df["TERM_ADMIT_TEXT"].apply(normalize_semester)
+        else:
+            processed["admit_semester"] = processed["term_admit"].apply(
+                lambda x: normalize_semester(re.sub(r'\d+[-\d]*', '', str(x)).strip()) if pd.notna(x) else "غير محدد"
+            )
+            
+        if "LAST_TERM_YEAR" in df.columns:
+            processed["last_term_year"] = pd.to_numeric(df["LAST_TERM_YEAR"], errors="coerce")
+        else:
+            processed["last_term_year"] = processed["last_term"].apply(parse_hijri_year)
+            
+        if "LAST_TERM_TEXT" in df.columns:
+            processed["last_term_semester"] = df["LAST_TERM_TEXT"].apply(normalize_semester)
+        else:
+            processed["last_term_semester"] = processed["last_term"].apply(
+                lambda x: normalize_semester(re.sub(r'\d+[-\d]*', '', str(x)).strip()) if pd.notna(x) else "غير محدد"
+            )
+
         processed["timeline_year"] = processed["admit_year"].fillna(processed["last_term_year"])
         processed["continent"] = processed["country"].apply(map_continent)
         # Add formatted Hijri date columns
         processed["admit_date_hijri"] = processed["term_admit"].apply(format_hijri_date)
         processed["last_term_hijri"] = processed["last_term"].apply(format_hijri_date)
         return processed
-    except FileNotFoundError:
-        st.error("❌ ملف البيانات غير موجود! يرجى التأكد من وجود 'data/data.xlsx'.")
+    except FileNotFoundError as e:
+        st.error(f"❌ {str(e)}")
         st.stop()
     except Exception as e:
         st.error(f"❌ خطأ في تحميل البيانات: {str(e)}")
         st.stop()
+
 
 
 def gaussian_kde(data, bandwidth=None):
@@ -782,23 +817,48 @@ def main():
     # Sidebar filters
     st.sidebar.header("📊 الفلاتر")
 
-    # Country filter
-    countries = ['الكل'] + sorted(df['country'].dropna().unique().tolist())
-    selected_country = st.sidebar.selectbox("اختر الدولة", countries)
+    # 1. Academic Year range filter (السنة الدراسية)
+    raw_years = df['admit_year'].dropna().unique()
+    if len(raw_years) > 0:
+        year_min = int(min(raw_years))
+        year_max = int(max(raw_years))
+    else:
+        year_min = 1417
+        year_max = 1448
+        
+    if year_min == year_max:
+        year_max = year_min + 1
 
-    # College filter
+    st.sidebar.markdown("**نطاق السنوات الدراسية**")
+    selected_year_range = st.sidebar.slider(
+        "اختر نطاق السنوات الدراسية (هـ)",
+        min_value=year_min,
+        max_value=year_max,
+        value=(year_min, year_max),
+        step=1
+    )
+
+    # 2. Semester filter (الفصل الدراسي)
+    semester_options = ['الكل', 'الأول', 'الثاني', 'الثالث', 'الصيفي']
+    selected_semester = st.sidebar.selectbox("اختر الفصل الدراسي", semester_options)
+
+    # 3. College filter (الكلية)
     colleges = ['الكل'] + sorted(df['college'].dropna().unique().tolist())
     selected_college = st.sidebar.selectbox("اختر الكلية", colleges)
 
-    # Program filter
+    # 4. Status filter (حالة الطالب)
+    status_options = ['الكل'] + sorted(df['status'].dropna().unique().tolist())
+    selected_status = st.sidebar.selectbox("اختر حالة الطالب", status_options)
+
+    # 5. Country filter
+    countries = ['الكل'] + sorted(df['country'].dropna().unique().tolist())
+    selected_country = st.sidebar.selectbox("اختر الدولة", countries)
+
+    # 6. Program filter
     programs = ['الكل'] + sorted(df['program'].dropna().unique().tolist())
     selected_program = st.sidebar.selectbox("اختر البرنامج", programs)
 
-    # Status filter
-    status_options = ['الكل'] + sorted(df['status'].dropna().unique().tolist())
-    selected_status = st.sidebar.selectbox("اختر الحالة", status_options)
-
-    # Gender filter
+    # 7. Gender filter
     gender_options = ['الكل'] + sorted(df['gender'].dropna().unique().tolist())
     selected_gender = st.sidebar.selectbox("اختر الجنس", gender_options)
 
@@ -814,6 +874,13 @@ def main():
 
     # Apply filters
     filtered_df = df.copy()
+    admit_year_for_filter = filtered_df['admit_year'].fillna(year_min)
+    filtered_df = filtered_df[
+        (admit_year_for_filter >= selected_year_range[0]) & 
+        (admit_year_for_filter <= selected_year_range[1])
+    ]
+    if selected_semester != 'الكل':
+        filtered_df = filtered_df[filtered_df['admit_semester'] == selected_semester]
     if selected_country != 'الكل':
         filtered_df = filtered_df[filtered_df['country'] == selected_country]
     if selected_college != 'الكل':
@@ -826,6 +893,7 @@ def main():
         filtered_df = filtered_df[filtered_df['gender'] == selected_gender]
     gpa_for_filter = filtered_df['gpa'].fillna(gpa_min)
     filtered_df = filtered_df[(gpa_for_filter >= gpa_range[0]) & (gpa_for_filter <= gpa_range[1])]
+
 
     # Display metrics as AdminKit-like stat cards
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)

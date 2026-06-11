@@ -243,15 +243,67 @@ def map_continent(value: str) -> str:
     key = str(value).strip()
     return COUNTRY_TO_CONTINENT.get(key, UNDEFINED_AR)
 
+def normalize_semester(text: str) -> str:
+    if pd.isna(text):
+        return "غير محدد"
+    text = str(text).strip()
+    if "الأول" in text or "الاول" in text or "أول" in text or "اول" in text:
+        return "الأول"
+    if "الثاني" in text or "الثانى" in text or "ثاني" in text or "ثانى" in text:
+        return "الثاني"
+    if "الثالث" in text or "ثالث" in text:
+        return "الثالث"
+    if "الصيفي" in text or "صيفي" in text:
+        return "الصيفي"
+    return text
+
 def categorize_status(value: str) -> str:
     if pd.isna(value):
-        return UNDEFINED_AR
-    text = str(value)
+        return "غير محدد"
+    text = str(value).strip()
+    
+    # 1. Graduate
     if any(keyword in text for keyword in STATUS_GRAD_KEYWORDS):
         return "متخرج"
-    if any(keyword in text for keyword in STATUS_ACTIVE_KEYWORDS):
+    
+    # 2. Active
+    if any(keyword in text for keyword in STATUS_ACTIVE_KEYWORDS) or any(k in text for k in ["قيد المعالجة", "مكتمل معلق"]):
         return "نشط"
+    
+    # 3. Withdrawn (منسحب)
+    if any(keyword in text for keyword in ["منسحب", "انسحاب", "إنسحاب"]):
+        return "منسحب"
+        
+    # 4. Apologized (معتذر)
+    if "معتذر" in text:
+        return "معتذر"
+        
+    # 5. Dismissed (مفصول)
+    if "مفصول" in text:
+        return "مفصول"
+        
+    # 6. Registration terminated (مطوي قيده)
+    if "مطوي قيده" in text:
+        return "مطوي قيده"
+        
+    # 7. Suspended (موقوف / معلق)
+    if any(keyword in text for keyword in ["موقوف", "تعليق"]):
+        return "موقوف"
+        
+    # 8. Interrupted (منقطع)
+    if "منقطع" in text:
+        return "منقطع"
+        
+    # 9. Deceased (متوفى)
+    if "متوفى" in text:
+        return "متوفى"
+        
+    # Default to "غير نشط - أخرى" or "غير نشط"
+    if any(k in text for k in ["NOT ACTIVE", "انتهت فترة الزيارة", "محول"]):
+        return "غير نشط - أخرى"
+        
     return "غير نشط"
+
 
 
 # Semester to Hijri month mapping for date formatting
