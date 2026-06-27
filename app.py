@@ -862,6 +862,10 @@ def main():
     gender_options = ['الكل'] + sorted(df['gender'].dropna().unique().tolist())
     selected_gender = st.sidebar.selectbox("اختر الجنس", gender_options)
 
+    # 8. Funding (Grant Type) filter
+    funding_options = ['الكل'] + sorted(df['funding'].dropna().unique().tolist())
+    selected_funding = st.sidebar.selectbox("اختر نوع المنحة", funding_options)
+
     # GPA range filter
     st.sidebar.markdown("**نطاق المعدل التراكمي**")
     gpa_range = st.sidebar.slider(
@@ -891,6 +895,8 @@ def main():
         filtered_df = filtered_df[filtered_df['status'] == selected_status]
     if selected_gender != 'الكل':
         filtered_df = filtered_df[filtered_df['gender'] == selected_gender]
+    if selected_funding != 'الكل':
+        filtered_df = filtered_df[filtered_df['funding'] == selected_funding]
     gpa_for_filter = filtered_df['gpa'].fillna(gpa_min)
     filtered_df = filtered_df[(gpa_for_filter >= gpa_range[0]) & (gpa_for_filter <= gpa_range[1])]
 
