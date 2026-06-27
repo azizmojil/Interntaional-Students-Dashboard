@@ -464,7 +464,7 @@ def load_data():
             "program": df.get("MAJR_DESC").fillna("غير محدد") if df.get("MAJR_DESC") is not None else "غير محدد",
             "college": df.get("COLL_DESC").fillna("غير محدد") if df.get("COLL_DESC") is not None else "غير محدد",
             "status_detail": df.get("LAST_STST").fillna("غير محدد") if df.get("LAST_STST") is not None else "غير محدد",
-            "funding": df.get("CELG_CODE").fillna("غير محدد") if df.get("CELG_CODE") is not None else "غير محدد",
+            "funding": df.get("CELG_CODE").fillna("منحة داخلية").replace("غير محدد", "منحة داخلية") if df.get("CELG_CODE") is not None else "منحة داخلية",
             "gpa": pd.to_numeric(df.get("STD_GPA"), errors="coerce") if df.get("STD_GPA") is not None else np.nan,
             "hours": pd.to_numeric(df.get("STD_HRS"), errors="coerce") if df.get("STD_HRS") is not None else np.nan,
             "term_admit": df.get("TERM_ADMIT"),
